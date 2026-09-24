@@ -1,0 +1,9 @@
+{
+  "content_list": [
+    {"type": "text", "text": "1 Chip Integrated Software Calibrated CMOS Pressure Sensor", "text_level": 1, "page_idx": 0, "bbox": [123, 48, 839, 133]},
+    {"type": "text", "text": "SUMMARY", "text_level": 2, "page_idx": 0, "bbox": [234, 150, 300, 170]},
+    {"type": "text", "text": "INTRODUCTION", "text_level": 2, "page_idx": 0, "bbox": [234, 200, 320, 220]},
+    {"type": "text", "text": "SYSTEM CONFIGURATION", "text_level": 3, "page_idx": 1, "bbox": [234, 100, 400, 120]},
+    {"type": "text", "text": "FABRICATION PROCESS", "text_level": 2, "page_idx": 2, "bbox": [234, 100, 400, 120]}
+  ]
+}

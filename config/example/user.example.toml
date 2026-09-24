@@ -1,0 +1,35 @@
+# PaperFlow 示例配置（不含真实密钥）
+
+# 本文件为可选增强配置，承载非 secret 项。
+# secret（MinerU token / GLM key）仍从 <config_dir>/user/MirerU 与 .../user/GLM 读取。
+
+[mineru]
+# MinerU 云 API 地址
+base_url = "https://mineru.net/api/v4"
+model_version = "vlm"
+enable_formula = true
+# MinerU 识别语言（英文 PDF 建议 "en"）
+language = "en"
+
+[glm]
+# GLM OpenAI 兼容地址
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+model = "glm-4.7-flash"
+temperature = 0.7
+top_p = 0.9
+
+[translation]
+# 严格串行
+concurrency = 1
+max_retries = 3
+# 秒
+backoff_base = 2.0
+target_lang = "简体中文"
+
+[chunking]
+target = 5000
+hard_limit = 6500
+
+[output]
+# 输出文件名后缀（input.md -> input.zh.md）
+zh_suffix = ".zh.md"

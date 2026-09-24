@@ -5,12 +5,13 @@ OpenAI 兼容 /chat/completions。清理 <think>...</think> 前缀（GLM 强思�
 from __future__ import annotations
 
 import re
+import time
 
 import httpx
 
 from config.models import GLMConfig
 from translation.backend import TranslationBackend
-from translation.retry import RetryPolicy
+from translation.retry import RETRYABLE_GLM_CODES, RetryPolicy
 
 _SYSTEM_PROMPT = """# 角色
 你是一名专业的机器翻译引擎。
@@ -84,6 +85,12 @@ class GLMBackend(TranslationBackend):
                     last_status = resp.status_code
                     raise GLMHTTPError(resp.status_code, resp.text)
                 result = resp.json()
+                # 业务错误（GLM 在 HTTP 200 中也可能返回 {"error": {...}}）
+                err = result.get("error")
+                if err:
+                    code = _error_code(err)
+                    last_status = code
+                    raise GLMHTTPError(code, str(err))
                 content = self._extract_content(result)
                 return self._sanitize(content)
             except GLMHTTPError as e:
@@ -96,7 +103,11 @@ class GLMBackend(TranslationBackend):
                 if not self.retry_policy.is_retryable(None, error=e):
                     raise
             if attempt < self.retry_policy.max_retries:
-                self.retry_policy.sleep(attempt)
+                # 负载过高（1305）用更长退避
+                if last_status in RETRYABLE_GLM_CODES:
+                    time.sleep(self.retry_policy.overload_delay(attempt))
+                else:
+                    self.retry_policy.sleep(attempt)
 
         raise GLMHTTPError(
             last_status,
@@ -136,3 +147,14 @@ def _safe_err(error: BaseException | None) -> str:
         return "unknown"
     text = str(error)
     return text[:200]
+
+
+def _error_code(err: object) -> int:
+    """从 GLM 业务错误中提取错误码（如 1305）。返回整数或 -1。"""
+    if isinstance(err, dict):
+        v = err.get("code")
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return -1
+    return -1

@@ -11,6 +11,9 @@ from dataclasses import dataclass
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 NON_RETRYABLE_STATUS = {400, 401, 403, 404, 422}
 
+# GLM 业务错误码：可重试（负载过高/限流等瞬态错误）
+RETRYABLE_GLM_CODES = {1305, 1301, 1302, 1303, 1304}
+
 
 @dataclass
 class RetryPolicy:
@@ -24,6 +27,8 @@ class RetryPolicy:
             return False
         if status_code in RETRYABLE_STATUS:
             return True
+        if status_code in RETRYABLE_GLM_CODES:
+            return True
         # 网络/超时类错误可重试
         if error is not None:
             return True
@@ -35,3 +40,7 @@ class RetryPolicy:
 
     def sleep(self, attempt: int) -> None:
         time.sleep(self.delay(attempt))
+
+    def overload_delay(self, attempt: int) -> float:
+        """GLM 负载过高（1305）时的更长退避。"""
+        return self.initial_delay * 4 * (self.backoff_base ** attempt)

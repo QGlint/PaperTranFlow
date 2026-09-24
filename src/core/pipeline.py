@@ -120,8 +120,16 @@ class Pipeline:
             encoding="utf-8",
         )
 
-        # checkpoint
-        state = checkpoint.init_state([c.chunk_id for c in chunks])
+        # checkpoint：优先复用已有 state（resume 场景），否则初始化
+        existing_state = checkpoint.load_state()
+        if existing_state is not None and checkpoint.verify_source_hash(existing_state):
+            state = existing_state
+            # 确保 chunk_ids 与本次 chunking 结果一致
+            if state.chunk_ids != [c.chunk_id for c in chunks]:
+                state.chunk_ids = [c.chunk_id for c in chunks]
+            checkpoint.adopt_state(state)
+        else:
+            state = checkpoint.init_state([c.chunk_id for c in chunks])
 
         backend = GLMBackend(self.config.glm, RetryPolicy(
             max_retries=self.config.translation.max_retries,
@@ -166,9 +174,9 @@ class Pipeline:
 
     def resume(self, md_path: Path, job_dir: Path | None = None) -> Path:
         """从 checkpoint 续跑。source hash 变化则拒绝。"""
-        text = md_path.read_text(encoding="utf-8")
-        document = self.normalize(text)
-        job_dir = job_dir or (md_path.parent / ".paperflow" / "jobs" / md_path.stem)
+        job_dir = job_dir or self._locate_job_dir(md_path)
+        if job_dir is None:
+            raise RuntimeError("未找到 checkpoint，无法 resume（请先运行 translate）")
         checkpoint = CheckpointManager(job_dir, md_path, self.config.glm.model)
 
         state = checkpoint.load_state()
@@ -179,9 +187,45 @@ class Pipeline:
 
         return self.translate(md_path, job_dir)
 
+    @staticmethod
+    def _locate_job_dir(md_path: Path) -> Path | None:
+        """根据 md 路径定位 job 目录。
+
+        向上查找 .paperflow/jobs 根，再在其中找 source_path 匹配的 job。
+        也兼容直接以 md 名命名的默认 job 目录。
+        """
+        md_path = md_path.resolve()
+        # 向上收集所有 .paperflow/jobs 根（最近的优先）
+        roots: list[Path] = []
+        cur = md_path.parent
+        while True:
+            candidate = cur / ".paperflow" / "jobs"
+            if candidate.is_dir():
+                roots.append(candidate)
+            if cur.parent == cur:
+                break
+            cur = cur.parent
+
+        for jobs_root in roots:
+            # 默认命名目录
+            default = jobs_root / md_path.stem
+            if (default / "state.json").is_file():
+                return default
+            # 扫描 state.json 匹配 source_path
+            for state_path in jobs_root.glob("*/state.json"):
+                try:
+                    data = json.loads(state_path.read_text(encoding="utf-8"))
+                    sp = data.get("source_path")
+                    if sp and Path(sp).resolve() == md_path:
+                        return state_path.parent
+                except (json.JSONDecodeError, OSError):
+                    continue
+        return None
+
     # ---- run ----
 
     def run(self, pdf_path: Path, job_dir: Path | None = None) -> Path:
+        job_dir = job_dir or (pdf_path.parent / ".paperflow" / "jobs" / pdf_path.stem)
         result_md, cl_json = self.parse(pdf_path, job_dir)
         return self.translate(result_md, job_dir)
 
@@ -193,22 +237,23 @@ class Pipeline:
         chunks: list[Chunk],
         translations: dict[str, str],
     ) -> None:
-        """把每个 chunk 的译文按 block 放回原 block。
+        """把每个 chunk 的译文放回对应 block（1:1 block 对应）。
 
-        简化策略：单个 chunk 内若只有单个可翻译 block，则直接把译文写入该 block；
-        否则（多 block chunk）把整个译文作为最后一个 block 的 normalized_text，
-        其余 block 保持原文（这保证 block 数量/顺序/结构不丢）。
+        chunk 与 block 对齐：每个 chunk 对应一个可翻译 block。
+        若某 block 因超长被拆成多个 chunk（共享 block_id），则按顺序拼接译文。
         """
+        # 收集每个 block_id 的译文片段（保持 chunk 顺序）
+        block_translations: dict[str, list[str]] = {}
         for chunk in chunks:
             translated = translations.get(chunk.chunk_id)
             if translated is None:
                 continue
-            block_map = {b.block_id: b for b in document.blocks}
-            blocks = [block_map.get(bid) for bid in chunk.block_ids if bid in block_map]
-            translatable = [b for b in blocks if b and b.is_translatable]
-            if len(translatable) == 1:
-                translatable[0].normalized_text = translated
-            elif blocks:
-                # 多 block：把译文放回最后一个可翻译 block
-                target = translatable[-1] if translatable else blocks[-1]
-                target.normalized_text = translated
+            for bid in chunk.block_ids:
+                block_translations.setdefault(bid, []).append(translated)
+
+        for block in document.blocks:
+            parts = block_translations.get(block.block_id)
+            if not parts:
+                continue
+            # 拼接（超长段落拆分的多个子块译文）
+            block.normalized_text = " ".join(p.rstrip("\n") for p in parts if p.strip())

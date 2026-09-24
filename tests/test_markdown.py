@@ -87,7 +87,8 @@ def test_build_heading_levels():
 
 # ---- chunking ----
 
-def test_chunker_preserves_atomic_blocks():
+def test_chunker_skips_non_translatable_blocks():
+    """不可翻译 block（code/math/image）不进入 chunk，不发送给 LLM。"""
     cfg = ChunkingConfig(target=5000, hard_limit=6500)
     doc = MarkdownDocument(blocks=[
         _block("b1", "heading", "# H"),
@@ -96,21 +97,27 @@ def test_chunker_preserves_atomic_blocks():
     ])
     chunker = SmartChunker(cfg)
     result = chunker.chunk(doc)
-    # 超大 code 保持完整（不切开），且出现 warning
-    assert any("保持完整" in w for w in result.warnings)
+    # code block 不进入任何 chunk
+    all_block_ids = [bid for c in result.chunks for bid in c.block_ids]
+    assert "b2" not in all_block_ids
+    # heading 和 paragraph 各成一个 chunk
+    assert "b1" in all_block_ids
+    assert "b3" in all_block_ids
 
 
-def test_chunker_never_splits_math():
+def test_chunker_one_chunk_per_translatable_block():
+    """每个可翻译 block 对应一个 chunk（1:1 block 对应）。"""
     cfg = ChunkingConfig(target=5000, hard_limit=6500)
     doc = MarkdownDocument(blocks=[
-        _block("b1", "paragraph", "before"),
-        _block("b2", "math", "$$\n" + "y" * 8000 + "\n$$"),
+        _block("b1", "heading", "# H"),
+        _block("b2", "paragraph", "hello"),
+        _block("b3", "math", "$$\nx\n$$"),
     ])
     result = SmartChunker(cfg).chunk(doc)
-    for c in result.chunks:
-        if "b2" in c.block_ids:
-            # math 块完整保留
-            assert "y" * 8000 in c.source_text
+    # 只有 b1、b2 是可翻译的，各一个 chunk
+    assert len(result.chunks) == 2
+    ids = [c.block_ids[0] for c in result.chunks]
+    assert ids == ["b1", "b2"]
 
 
 def _block(bid, btype, text):

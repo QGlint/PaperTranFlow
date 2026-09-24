@@ -55,6 +55,11 @@ class CheckpointManager:
         self._write_state()
         return state
 
+    def adopt_state(self, state: JobState) -> None:
+        """复用已加载的 state（resume 场景），使后续 mark_done 生效。"""
+        self._state = state
+        self._write_state()
+
     def _write_state(self) -> None:
         if self._state is None:
             return

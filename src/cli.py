@@ -1,4 +1,4 @@
-"""PaperFlow CLI。
+﻿"""PaperFlow CLI。
 
 职责：参数解析、配置加载、启动 Job、显示进度/日志、返回退出码。
 不包含业务逻辑（业务在 core/pipeline.py）。
@@ -9,10 +9,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from config.credentials import mask_secret
-from config.loader import ConfigLoader
-from core.events import EventType
-from core.pipeline import Pipeline
+from pf_config.credentials import mask_secret
+from pf_config.loader import ConfigLoader
+from pf_core.events import EventType
+from pf_core.pipeline import Pipeline
 
 
 def _build_parser() -> argparse.ArgumentParser:

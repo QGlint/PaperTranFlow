@@ -1,4 +1,4 @@
-"""GLM 后端（GLM-4.7-Flash）。
+﻿"""GLM 后端（GLM-4.7-Flash）。
 
 OpenAI 兼容 /chat/completions。清理 <think>...</think> 前缀（GLM 强思考模型）。
 """
@@ -9,9 +9,9 @@ import time
 
 import httpx
 
-from config.models import GLMConfig
-from translation.backend import TranslationBackend
-from translation.retry import RETRYABLE_GLM_CODES, RetryPolicy
+from pf_config.models import GLMConfig
+from pf_translation.backend import TranslationBackend
+from pf_translation.retry import RETRYABLE_GLM_CODES, RetryPolicy
 
 _SYSTEM_PROMPT = """# 角色
 你是一名专业的机器翻译引擎。

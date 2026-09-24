@@ -1,4 +1,4 @@
-"""输出写入。
+﻿"""输出写入。
 
 把翻译后的 block 序列化，写 input.zh.md。保证与 input.md 的
 block 数量/顺序/结构严格对应（代码/公式/图片原样保留）。
@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from markdown.models import MarkdownDocument
-from markdown.serializer import serialize_markdown
+from pf_markdown.models import MarkdownDocument
+from pf_markdown.serializer import serialize_markdown
 
 
 class OutputWriter:

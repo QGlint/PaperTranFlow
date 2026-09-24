@@ -1,4 +1,4 @@
-"""结构恢复：结合 content_list.json 恢复 heading 层级。
+﻿"""结构恢复：结合 content_list.json 恢复 heading 层级。
 
 依据（spec §13）：
     - content_list.json 提供 text_level / type 等结构信息
@@ -12,8 +12,8 @@
 """
 from __future__ import annotations
 
-from markdown.models import MarkdownBlock, MarkdownDocument
-from mineru.content_list import build_heading_levels, parse_content_list
+from pf_markdown.models import MarkdownBlock, MarkdownDocument
+from pf_mineru.content_list import build_heading_levels, parse_content_list
 
 
 def _norm_title(text: str) -> str:

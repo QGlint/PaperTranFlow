@@ -1,4 +1,4 @@
-"""Config 相关测试。"""
+﻿"""Config 相关测试。"""
 import sys
 import os
 from pathlib import Path
@@ -6,9 +6,9 @@ from pathlib import Path
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
 
-from config.credentials import CredentialLoader, mask_secret
-from config.loader import ConfigLoader
-from config.models import PaperFlowConfig
+from pf_config.credentials import CredentialLoader, mask_secret
+from pf_config.loader import ConfigLoader
+from pf_config.models import PaperFlowConfig
 
 
 def _tmp_config(tmp_path, mineru_token="tok-mineru", glm_key="key-glm"):

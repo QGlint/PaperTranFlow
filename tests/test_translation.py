@@ -1,4 +1,4 @@
-"""翻译、重试、checkpoint、resume 测试。"""
+﻿"""翻译、重试、checkpoint、resume 测试。"""
 import json
 import os
 import sys
@@ -7,9 +7,9 @@ from pathlib import Path
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
 
-from core.models import Chunk
-from translation.checkpoint import CheckpointManager
-from translation.retry import RetryPolicy
+from pf_core.models import Chunk
+from pf_translation.checkpoint import CheckpointManager
+from pf_translation.retry import RetryPolicy
 
 
 def test_retry_policy():

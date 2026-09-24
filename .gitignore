@@ -15,3 +15,4 @@ dist/
 
 # 测试/临时
 .pytest_cache/
+*.spec

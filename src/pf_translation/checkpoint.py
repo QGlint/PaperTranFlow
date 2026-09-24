@@ -1,4 +1,4 @@
-"""Checkpoint 管理。
+﻿"""Checkpoint 管理。
 
 每个 chunk 成功后立即落盘 state.json + chunks/<chunk_id>.json。
 resume 时校验 source hash，跳过已完成 chunk，已成功 chunk 绝不重调 GLM。
@@ -9,7 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from core.models import Chunk, JobState
+from pf_core.models import Chunk, JobState
 
 
 def compute_source_hash(path: Path) -> str:

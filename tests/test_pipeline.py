@@ -6,7 +6,7 @@ from pathlib import Path
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
 
-from config.models import (
+from pf_config.models import (
     ChunkingConfig,
     GLMConfig,
     MinerUConfig,
@@ -14,8 +14,8 @@ from config.models import (
     PaperFlowConfig,
     TranslationConfig,
 )
-from core.pipeline import Pipeline
-from markdown.models import MarkdownBlock, MarkdownDocument
+from pf_core.pipeline import Pipeline
+from pf_markdown.models import MarkdownBlock, MarkdownDocument
 
 
 class _MockBackend:
@@ -47,7 +47,7 @@ def test_apply_translations_one_to_one():
         MarkdownBlock("b3", "math", "$$\nx\n$$"),
         MarkdownBlock("b4", "paragraph", "second paragraph"),
     ])
-    from core.models import Chunk
+    from pf_core.models import Chunk
 
     chunks = [
         Chunk("c1", ["b1"], "# Intro"),
@@ -77,7 +77,7 @@ def test_translate_end_to_end(tmp_path, monkeypatch):
     pipeline = Pipeline(cfg)
 
     # 注入 mock backend
-    import core.pipeline as cp
+    import pf_core.pipeline as cp
 
     monkeypatch.setattr(cp, "GLMBackend", lambda *a, **k: _MockBackend())
 

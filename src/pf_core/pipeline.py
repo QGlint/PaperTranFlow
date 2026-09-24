@@ -1,4 +1,4 @@
-"""完整 Pipeline 编排。
+﻿"""完整 Pipeline 编排。
 
     parse:   PDF -> MinerU -> result.md + content_list.json (+ normalized.md)
     translate: input.md -> normalize -> chunk -> GLM -> checkpoint -> input.zh.md
@@ -14,21 +14,21 @@ import shutil
 from pathlib import Path
 from typing import Callable
 
-from config.loader import ConfigLoader
-from config.models import PaperFlowConfig
-from core.events import EventType
-from core.models import Chunk
-from markdown.cleanup import MarkdownCleaner
-from markdown.models import MarkdownBlock, MarkdownDocument
-from markdown.normalize import MarkdownNormalizer
-from markdown.parser import parse_markdown
-from markdown.structure import StructureRestorer
-from mineru.client import MinerUClient
-from output.writer import OutputWriter
-from translation.checkpoint import CheckpointManager
-from translation.chunker import SmartChunker
-from translation.glm import GLMBackend
-from translation.retry import RetryPolicy
+from pf_config.loader import ConfigLoader
+from pf_config.models import PaperFlowConfig
+from pf_core.events import EventType
+from pf_core.models import Chunk
+from pf_markdown.cleanup import MarkdownCleaner
+from pf_markdown.models import MarkdownBlock, MarkdownDocument
+from pf_markdown.normalize import MarkdownNormalizer
+from pf_markdown.parser import parse_markdown
+from pf_markdown.structure import StructureRestorer
+from pf_mineru.client import MinerUClient
+from pf_output.writer import OutputWriter
+from pf_translation.checkpoint import CheckpointManager
+from pf_translation.chunker import SmartChunker
+from pf_translation.glm import GLMBackend
+from pf_translation.retry import RetryPolicy
 
 EventHandler = Callable[[EventType, dict], None]
 
@@ -83,7 +83,7 @@ class Pipeline:
         return document
 
     def write_normalized(self, document: MarkdownDocument, path: Path) -> None:
-        from markdown.serializer import serialize_markdown
+        from pf_markdown.serializer import serialize_markdown
 
         path.write_text(serialize_markdown(document), encoding="utf-8")
 

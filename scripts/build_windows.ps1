@@ -1,18 +1,19 @@
-# PaperFlow Windows 构建脚本（PyInstaller onefile）
+# PaperFlow Windows build script (PyInstaller)
 #
-# 职责：clean -> build -> smoke test
-# 产物：dist/PaperFlow.exe
+# Steps: clean -> build -> smoke test
+# Output: dist/PaperFlow.exe
 #
-# 不打包 MinerU 本体 / LLM 模型 / API credential。
+# Does NOT bundle MinerU / LLM model / API credentials.
 
 param(
-    [switch]$OneFile   # 单文件模式（默认）
+    [switch]$OneFile   # onefile mode (default)
 )
 
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
 $Entry = Join-Path $Root "src\cli.py"
+$SrcDir = Join-Path $Root "src"
 $Dist = Join-Path $Root "dist"
 $Build = Join-Path $Root "build"
 
@@ -21,29 +22,30 @@ if (Test-Path $Dist) { Remove-Item $Dist -Recurse -Force }
 if (Test-Path $Build) { Remove-Item $Build -Recurse -Force }
 
 Write-Host "==> 2/3 build"
-$args = @(
+$pyArgs = @(
     "--clean",
     "--noconfirm",
     "--name", "PaperFlow",
     "--distpath", $Dist,
-    "--workpath", $Build
+    "--workpath", $Build,
+    "--paths", $SrcDir
 )
 if (-not $OneFile) {
-    $args += "--onedir"
+    $pyArgs += "--onedir"
 } else {
-    $args += "--onefile"
+    $pyArgs += "--onefile"
 }
-# 不打包密钥：仅入口脚本
-$args += $Entry
+$pyArgs += $Entry
 
-python -m PyInstaller @args
+python -m PyInstaller @pyArgs
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 
 Write-Host "==> 3/3 smoke test"
 $Exe = Join-Path $Dist "PaperFlow.exe"
-if (-not (Test-Path $Exe)) { throw "PaperFlow.exe 未生成" }
+if (-not (Test-Path $Exe)) { throw "PaperFlow.exe not generated" }
 & $Exe --help
 if ($LASTEXITCODE -ne 0) { throw "smoke test failed" }
 & $Exe config check
+if ($LASTEXITCODE -ne 0) { throw "config check failed" }
 
-Write-Host "==> 完成: $Exe"
+Write-Host "==> Done: $Exe"

@@ -1,4 +1,4 @@
-"""Smart Chunker。
+﻿"""Smart Chunker。
 
 禁止固定长度硬切。采用 soft target + hard limit，边界优先级：
     block end > paragraph end > sentence end > newline > word > hard cut
@@ -17,9 +17,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from config.models import ChunkingConfig
-from core.models import Chunk
-from markdown.models import MarkdownBlock, MarkdownDocument
+from pf_config.models import ChunkingConfig
+from pf_core.models import Chunk
+from pf_markdown.models import MarkdownBlock, MarkdownDocument
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?。！？])\s+")
 

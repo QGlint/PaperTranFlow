@@ -1,4 +1,4 @@
-"""markdownchange 历史问题回归测试（spec §38）。
+﻿"""markdownchange 历史问题回归测试（spec §38）。
 
 基于 ref/markdownchange 中已解决的实际问题建立 regression case，
 验证重写后的 PaperFlow 模块通过。
@@ -12,10 +12,10 @@ sys.path.insert(0, SRC)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-from markdown.parser import parse_markdown
-from markdown.structure import StructureRestorer
-from markdown.tables import convert_html_table
-from markdown.cleanup import MarkdownCleaner
+from pf_markdown.parser import parse_markdown
+from pf_markdown.structure import StructureRestorer
+from pf_markdown.tables import convert_html_table
+from pf_markdown.cleanup import MarkdownCleaner
 
 
 def test_case_001_html_table_rowspan_colspan():
@@ -54,7 +54,7 @@ def test_case_002_heading_restore_from_content_list():
 
 def test_case_003_image_cleanup_dedup():
     """markdownchange-case-003: 重复图片引用去重。"""
-    from markdown.models import MarkdownBlock, MarkdownDocument
+    from pf_markdown.models import MarkdownBlock, MarkdownDocument
 
     doc = MarkdownDocument(blocks=[
         MarkdownBlock("b1", "image", "![](images/a.jpg)"),

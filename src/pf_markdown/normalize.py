@@ -1,4 +1,4 @@
-"""Markdown 标准化（MarkdownNormalizer）。
+﻿"""Markdown 标准化（MarkdownNormalizer）。
 
 目标：MinerU Markdown -> 稳定、统一、可预测的 Markdown。
 
@@ -11,8 +11,8 @@
 """
 from __future__ import annotations
 
-from markdown.models import MarkdownBlock, MarkdownDocument
-from markdown.tables import convert_html_table
+from pf_markdown.models import MarkdownBlock, MarkdownDocument
+from pf_markdown.tables import convert_html_table
 
 
 class MarkdownNormalizer:

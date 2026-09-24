@@ -31,13 +31,13 @@ dev = [
 ]
 
 [project.scripts]
-paperflow = "paperflow.cli:main"
+paperflow = "cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-paperflow = ["py.typed"]
+"*" = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

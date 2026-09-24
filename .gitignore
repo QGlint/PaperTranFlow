@@ -1,3 +1,17 @@
 ref/
 /config/user/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
 build/
+dist/
+
+# PaperFlow runtime
+.paperflow/
+*.zh.md
+
+# 测试/临时
+.pytest_cache/

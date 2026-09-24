@@ -1,0 +1,4 @@
+{
+  "base_url": "https://your-cf-image-host.example.com",
+  "token": "your-image-host-token"
+}

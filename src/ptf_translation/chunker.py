@@ -17,9 +17,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from pf_config.models import ChunkingConfig
-from pf_core.models import Chunk
-from pf_markdown.models import MarkdownBlock, MarkdownDocument
+from ptf_config.models import ChunkingConfig
+from ptf_core.models import Chunk
+from ptf_markdown.models import MarkdownBlock, MarkdownDocument
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?。！？])\s+")
 

@@ -1,7 +1,7 @@
-# PaperFlow Windows build script (PyInstaller)
+﻿# PaperTranFlow Windows build script (PyInstaller)
 #
 # Steps: clean -> build -> smoke test
-# Output: dist/PaperFlow.exe
+# Output: dist/PaperTranFlow.exe
 #
 # Does NOT bundle MinerU / LLM model / API credentials.
 
@@ -25,7 +25,7 @@ Write-Host "==> 2/3 build"
 $pyArgs = @(
     "--clean",
     "--noconfirm",
-    "--name", "PaperFlow",
+    "--name", "PaperTranFlow",
     "--distpath", $Dist,
     "--workpath", $Build,
     "--paths", $SrcDir
@@ -41,8 +41,8 @@ python -m PyInstaller @pyArgs
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 
 Write-Host "==> 3/3 smoke test"
-$Exe = Join-Path $Dist "PaperFlow.exe"
-if (-not (Test-Path $Exe)) { throw "PaperFlow.exe not generated" }
+$Exe = Join-Path $Dist "PaperTranFlow.exe"
+if (-not (Test-Path $Exe)) { throw "PaperTranFlow.exe not generated" }
 & $Exe --help
 if ($LASTEXITCODE -ne 0) { throw "smoke test failed" }
 & $Exe config check

@@ -1,8 +1,8 @@
-"""用户配置目录定位（UserConfigLocator）。
+﻿"""用户配置目录定位（UserConfigLocator）。
 
 优先级：
-1. 环境变量 PAPERFLOW_CONFIG_DIR
-2. Windows: %APPDATA%/PaperFlow/config
+1. 环境变量 PaperTranFlow_CONFIG_DIR
+2. Windows: %APPDATA%/PaperTranFlow/config
 3. 开发环境：仓库根 /config（兼容现有 /config/user/）
 """
 from __future__ import annotations
@@ -20,13 +20,13 @@ class UserConfigLocator:
     def candidates(self) -> list[Path]:
         result: list[Path] = []
 
-        env_dir = os.environ.get("PAPERFLOW_CONFIG_DIR")
+        env_dir = os.environ.get("PaperTranFlow_CONFIG_DIR")
         if env_dir:
             result.append(Path(env_dir))
 
         appdata = os.environ.get("APPDATA")
         if appdata:
-            result.append(Path(appdata) / "PaperFlow" / "config")
+            result.append(Path(appdata) / "PaperTranFlow" / "config")
 
         # 开发环境：仓库根 /config（向上查找 pyproject.toml 或 .git）
         root = self._find_repo_root(self._cwd)

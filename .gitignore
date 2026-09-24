@@ -9,8 +9,9 @@ __pycache__/
 build/
 dist/
 
-# PaperFlow runtime
-.paperflow/
+# PaperTranFlow runtime
+.papertranflow/
+outfile/
 *.zh.md
 
 # 测试/临时

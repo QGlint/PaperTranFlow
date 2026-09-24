@@ -1,7 +1,7 @@
 """统一配置加载（ConfigLoader）。
 
 组合 UserConfigLocator + CredentialLoader + 可选 TOML 增强，
-产出 PaperFlowConfig。
+产出 PaperTranFlowConfig。
 """
 from __future__ import annotations
 
@@ -13,9 +13,10 @@ from .locator import UserConfigLocator
 from .models import (
     ChunkingConfig,
     GLMConfig,
+    ImageHostConfig,
     MinerUConfig,
     OutputConfig,
-    PaperFlowConfig,
+    PaperTranFlowConfig,
     TranslationConfig,
 )
 
@@ -48,7 +49,7 @@ class ConfigLoader:
     def config_dir(self) -> str:
         return str(self._config_dir) if self._config_dir else ""
 
-    def load(self) -> PaperFlowConfig:
+    def load(self) -> PaperTranFlowConfig:
         toml = self._load_user_toml()
 
         mineru = MinerUConfig(
@@ -85,12 +86,21 @@ class ConfigLoader:
             zh_suffix=self._toml_str(toml, "output", "zh_suffix", ".zh.md"),
         )
 
-        return PaperFlowConfig(
+        # 图床配置：从 CfImage.json 读取，默认关闭
+        cf_base, cf_token = self._credentials.load_image_host()
+        image_host = ImageHostConfig(
+            base_url=cf_base,
+            token=cf_token,
+            enabled=self._toml_bool(toml, "image_host", "enabled", False),
+        )
+
+        return PaperTranFlowConfig(
             mineru=mineru,
             glm=glm,
             translation=translation,
             chunking=chunking,
             output=output,
+            image_host=image_host,
             config_dir=self.config_dir,
         )
 

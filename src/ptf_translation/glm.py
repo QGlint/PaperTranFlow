@@ -9,9 +9,9 @@ import time
 
 import httpx
 
-from pf_config.models import GLMConfig
-from pf_translation.backend import TranslationBackend
-from pf_translation.retry import RETRYABLE_GLM_CODES, RetryPolicy
+from ptf_config.models import GLMConfig
+from ptf_translation.backend import TranslationBackend
+from ptf_translation.retry import RETRYABLE_GLM_CODES, RetryPolicy
 
 _SYSTEM_PROMPT = """# 角色
 你是一名专业的机器翻译引擎。

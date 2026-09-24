@@ -1,4 +1,4 @@
-﻿"""PaperFlow CLI。
+"""PaperTranFlow CLI。
 
 职责：参数解析、配置加载、启动 Job、显示进度/日志、返回退出码。
 不包含业务逻辑（业务在 core/pipeline.py）。
@@ -9,15 +9,15 @@ import argparse
 import sys
 from pathlib import Path
 
-from pf_config.credentials import mask_secret
-from pf_config.loader import ConfigLoader
-from pf_core.events import EventType
-from pf_core.pipeline import Pipeline
+from ptf_config.credentials import mask_secret
+from ptf_config.loader import ConfigLoader
+from ptf_core.events import EventType
+from ptf_core.pipeline import Pipeline
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="paperflow",
+        prog="papertranflow",
         description="本地 CLI 优先的文档解析、Markdown 标准化与文档翻译工具。",
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -38,7 +38,13 @@ def _build_parser() -> argparse.ArgumentParser:
     config_sub_sub = config_sub.add_subparsers(dest="config_command", required=True)
     config_sub_sub.add_parser("check", help="检查 MinerU/GLM 配置")
 
-    parser.add_argument("--job-dir", help="job 工作目录（默认 .paperflow/jobs/<name>）")
+    parser.add_argument("--work-dir", help="中间过程目录（默认 .papertranflow/<name>）")
+    parser.add_argument("--out-dir", help="结果目录（默认 outfile/<name>）")
+    parser.add_argument(
+        "--upload-images",
+        action="store_true",
+        help="上传图片到 cf 图床（默认关闭，需 config/user/CfImage.json 配置）",
+    )
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
     return parser
 
@@ -84,6 +90,8 @@ def _cmd_config_check() -> int:
     print(f"GLM:    {'configured' if cfg.glm.configured else 'not configured'}"
           f"  {mask_secret(cfg.glm.api_key)}")
     print(f"GLM model: {cfg.glm.model}")
+    print(f"ImageHost: {'configured' if cfg.image_host.configured else 'not configured'}"
+          f"  enabled={cfg.image_host.enabled}")
     return 0
 
 
@@ -100,7 +108,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     cfg = ConfigLoader().load()
-    job_dir = Path(args.job_dir) if args.job_dir else None
+    work_dir = Path(args.work_dir) if args.work_dir else None
+    out_dir = Path(args.out_dir) if args.out_dir else None
+
+    # 图床上传开关（默认关闭）
+    if getattr(args, "upload_images", False):
+        cfg.image_host.enabled = True
+        if not cfg.image_host.configured:
+            print("错误：图床未配置（请检查 /config/user/CfImage.json）", file=sys.stderr)
+            return 3
 
     if args.command == "parse":
         if not cfg.mineru.configured:
@@ -108,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
             return 3
         pipeline = Pipeline(cfg, emit=_make_emitter())
         try:
-            result_md, _ = pipeline.parse(input_path, job_dir)
+            result_md, _ = pipeline.parse(input_path, work_dir, out_dir)
             print(f"解析完成：{result_md}")
             return 0
         except Exception as e:
@@ -125,11 +141,11 @@ def main(argv: list[str] | None = None) -> int:
         pipeline = Pipeline(cfg, emit=_make_emitter())
         try:
             if args.command == "run":
-                out = pipeline.run(input_path, job_dir)
+                out = pipeline.run(input_path, work_dir, out_dir)
             elif args.command == "resume":
-                out = pipeline.resume(input_path, job_dir)
+                out = pipeline.resume(input_path, work_dir)
             else:
-                out = pipeline.translate(input_path, job_dir)
+                out = pipeline.translate(input_path, work_dir, out_dir)
             print(f"翻译完成：{out}")
             return 0
         except Exception as e:

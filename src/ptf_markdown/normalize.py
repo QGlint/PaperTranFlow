@@ -1,4 +1,4 @@
-﻿"""Markdown 标准化（MarkdownNormalizer）。
+"""Markdown 标准化（MarkdownNormalizer）。
 
 目标：MinerU Markdown -> 稳定、统一、可预测的 Markdown。
 
@@ -11,8 +11,8 @@
 """
 from __future__ import annotations
 
-from pf_markdown.models import MarkdownBlock, MarkdownDocument
-from pf_markdown.tables import convert_html_table
+from ptf_markdown.models import MarkdownBlock, MarkdownDocument
+from ptf_markdown.tables import convert_html_table
 
 
 class MarkdownNormalizer:
@@ -21,7 +21,9 @@ class MarkdownNormalizer:
 
     def normalize(self, document: MarkdownDocument) -> MarkdownDocument:
         for block in document.blocks:
-            block.normalized_text = block.source_text
+            # 只填充尚未设置的 normalized_text（保留 structure 恢复已设置的标题层级等）
+            if not block.normalized_text:
+                block.normalized_text = block.source_text
 
         self._convert_html_tables(document)
         return document

@@ -1,16 +1,16 @@
-# PaperFlow 架构分析
+﻿# PaperTranFlow 架构分析
 
 > 阶段：Phase 1 / Phase 2
-> 目标：在开始实现 Core 之前，明确 PaperFlow 的总体架构、模块边界、运行时依赖与关键决策。
+> 目标：在开始实现 Core 之前，明确 PaperTranFlow 的总体架构、模块边界、运行时依赖与关键决策。
 
 ## 1. 目标与定位
 
-PaperFlow 是一个**本地 CLI 优先**的文档解析 + Markdown 标准化 + 文档翻译工具。
+PaperTranFlow 是一个**本地 CLI 优先**的文档解析 + Markdown 标准化 + 文档翻译工具。
 对外提供两个等价入口，二者共用同一套 Core：
 
 ```text
-PaperFlow CLI          (Python entry point: paperflow)
-PaperFlow Windows EXE  (PyInstaller onefile: PaperFlow.exe)
+PaperTranFlow CLI          (Python entry point: PaperTranFlow)
+PaperTranFlow Windows EXE  (PyInstaller onefile: PaperTranFlow.exe)
 ```
 
 核心数据流：
@@ -34,15 +34,15 @@ input.zh.md   (翻译后的简体中文 Markdown)
 
 | 层 | 职责 |
 |----|------|
-| `src/paperflow/core` | 业务逻辑：MinerU、Markdown、结构、chunking、翻译、retry、checkpoint、output |
-| `src/paperflow/cli.py` | 参数解析、配置加载、启动 Job、显示进度/日志、返回退出码 |
+| `src/PaperTranFlow/core` | 业务逻辑：MinerU、Markdown、结构、chunking、翻译、retry、checkpoint、output |
+| `src/PaperTranFlow/cli.py` | 参数解析、配置加载、启动 Job、显示进度/日志、返回退出码 |
 
 CLI **不得**包含 pipeline 业务逻辑，只把 Core 发出的事件翻译成终端输出。这样未来增加其它前端时无需改业务逻辑。
 
 ## 3. 模块划分（最终结构）
 
 ```text
-paperflow/
+PaperTranFlow/
 ├── pyproject.toml
 ├── README.md
 ├── LICENSE
@@ -51,7 +51,7 @@ paperflow/
 ├── config/example/user.example.toml
 ├── docs/            # 分析文档（本目录）
 ├── ref/             # 参考区（docutranslate / markdownchange），不删不改
-├── src/paperflow/
+├── src/PaperTranFlow/
 │   ├── __init__.py
 │   ├── cli.py
 │   ├── core/        # pipeline.py / models.py / events.py
@@ -68,8 +68,8 @@ paperflow/
 ## 4. 各模块职责
 
 ### 4.1 config
-- `ConfigLoader`：统一加载 MinerU / GLM / PaperFlow runtime 配置。
-- `UserConfigLocator`：定位用户配置目录（`PAPERFLOW_CONFIG_DIR` 优先，其次 Windows 用户目录，开发环境兼容 `/config/user/`）。
+- `ConfigLoader`：统一加载 MinerU / GLM / PaperTranFlow runtime 配置。
+- `UserConfigLocator`：定位用户配置目录（`PaperTranFlow_CONFIG_DIR` 优先，其次 Windows 用户目录，开发环境兼容 `/config/user/`）。
 - `CredentialLoader`：读取 token/secret，并负责脱敏（`config check` 只显示 `configured`，不显示明文）。
 - 兼容现有 `/config/user/` 的**纯 token 文件**格式（见 `config-analysis.md`）。
 
@@ -125,7 +125,7 @@ import ref.markdownchange.xxx
 
 ## 6. 关键决策汇总
 
-1. **Config 格式**：兼容 `/config/user/` 纯 token 文件；同时支持 `PAPERFLOW_CONFIG_DIR` 覆盖与可选 TOML。
+1. **Config 格式**：兼容 `/config/user/` 纯 token 文件；同时支持 `PaperTranFlow_CONFIG_DIR` 覆盖与可选 TOML。
 2. **MinerU**：官方云 API `https://mineru.net/api/v4`，`model_version=vlm`，`enable_formula=True`。
 3. **GLM**：OpenAI 兼容 `https://open.bigmodel.cn/api/paas/v4`，`glm-4.7-flash`，`concurrency=1`（严格串行）。
 4. **翻译方式**：block 级提取可翻译文本 → GLM → 放回原 block → serializer 重组；不让 LLM 重新生成整份 Markdown。
@@ -140,7 +140,7 @@ import ref.markdownchange.xxx
   - MinerU 云 API 调用流程（submit/poll/download/extract）。
   - 图片占位符 masking（`<ph-xxx>`）避免图片 base64 进入 LLM。
   - `<think>` 响应清理、`finish_reason=length` 处理。
-- **从 markdownchange 迁移（重写为 PaperFlow module）**：
+- **从 markdownchange 迁移（重写为 PaperTranFlow module）**：
   - HTML table → Markdown（rowspan/colspan 展开，`html_table_to_md2.py` 算法）。
   - heading 层级恢复（`process_md_by_contents.py` / `mark_c.py` 思路，改为基于 `content_list.json`）。
   - 图片引用清理（`clean_images.py` 思路）。

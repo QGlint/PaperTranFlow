@@ -9,7 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from pf_core.models import Chunk, JobState
+from ptf_core.models import Chunk, JobState
 
 
 def compute_source_hash(path: Path) -> str:

@@ -6,16 +6,16 @@ from pathlib import Path
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
 
-from pf_config.models import (
+from ptf_config.models import (
     ChunkingConfig,
     GLMConfig,
     MinerUConfig,
     OutputConfig,
-    PaperFlowConfig,
+    PaperTranFlowConfig,
     TranslationConfig,
 )
-from pf_core.pipeline import Pipeline
-from pf_markdown.models import MarkdownBlock, MarkdownDocument
+from ptf_core.pipeline import Pipeline
+from ptf_markdown.models import MarkdownBlock, MarkdownDocument
 
 
 class _MockBackend:
@@ -30,7 +30,7 @@ class _MockBackend:
 
 
 def _cfg():
-    return PaperFlowConfig(
+    return PaperTranFlowConfig(
         mineru=MinerUConfig(token="x"),
         glm=GLMConfig(api_key="x", model="glm-4.7-flash"),
         translation=TranslationConfig(),
@@ -47,7 +47,7 @@ def test_apply_translations_one_to_one():
         MarkdownBlock("b3", "math", "$$\nx\n$$"),
         MarkdownBlock("b4", "paragraph", "second paragraph"),
     ])
-    from pf_core.models import Chunk
+    from ptf_core.models import Chunk
 
     chunks = [
         Chunk("c1", ["b1"], "# Intro"),
@@ -77,11 +77,11 @@ def test_translate_end_to_end(tmp_path, monkeypatch):
     pipeline = Pipeline(cfg)
 
     # 注入 mock backend
-    import pf_core.pipeline as cp
+    import ptf_core.pipeline as cp
 
     monkeypatch.setattr(cp, "GLMBackend", lambda *a, **k: _MockBackend())
 
-    out = pipeline.translate(md, job_dir=tmp_path / "job")
+    out = pipeline.translate(md, work_dir=tmp_path / "work", out_dir=tmp_path / "out")
     assert out.name == "input.zh.md"
     text = out.read_text(encoding="utf-8")
     # heading 被翻译

@@ -18,8 +18,8 @@ from pathlib import Path
 
 import httpx
 
-from pf_config.models import MinerUConfig
-from pf_mineru.models import MinerUResult
+from ptf_config.models import MinerUConfig
+from ptf_mineru.models import MinerUResult
 
 _MD_FILENAMES = ("full.md", "result.md", "auto.md", "output.md")
 

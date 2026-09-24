@@ -7,9 +7,9 @@ from pathlib import Path
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
 
-from pf_core.models import Chunk
-from pf_translation.checkpoint import CheckpointManager
-from pf_translation.retry import RetryPolicy
+from ptf_core.models import Chunk
+from ptf_translation.checkpoint import CheckpointManager
+from ptf_translation.retry import RetryPolicy
 
 
 def test_retry_policy():

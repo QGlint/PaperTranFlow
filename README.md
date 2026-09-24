@@ -1,4 +1,4 @@
-# PaperFlow
+﻿# PaperTranFlow
 
 本地 CLI 优先的文档解析、Markdown 标准化与文档翻译工具。
 
@@ -11,8 +11,8 @@ PDF → MinerU API → Markdown + content_list.json
 ## 两个等价入口（同一套 Core）
 
 ```text
-PaperFlow CLI          paperflow run input.pdf
-PaperFlow Windows EXE  PaperFlow.exe run input.pdf
+PaperTranFlow CLI          PaperTranFlow run input.pdf
+PaperTranFlow Windows EXE  PaperTranFlow.exe run input.pdf
 ```
 
 ## 安装
@@ -33,7 +33,7 @@ config/user/GLM      # GLM API key
 也可用环境变量覆盖配置目录：
 
 ```powershell
-$env:PAPERFLOW_CONFIG_DIR = "C:\path\to\config"
+$env:PaperTranFlow_CONFIG_DIR = "C:\path\to\config"
 ```
 
 示例配置见 `config/example/user.example.toml`（不含真实密钥）。
@@ -41,13 +41,13 @@ $env:PAPERFLOW_CONFIG_DIR = "C:\path\to\config"
 ## 用法
 
 ```bash
-paperflow --help
+PaperTranFlow --help
 
-paperflow parse input.pdf          # PDF → MinerU → Markdown (+ content_list.json)
-paperflow translate input.md       # Markdown → 中文 Markdown (input.zh.md)
-paperflow run input.pdf            # 完整 pipeline（parse + translate）
-paperflow resume input.md          # 从 checkpoint 续跑
-paperflow config check             # 检查 MinerU/GLM 配置
+PaperTranFlow parse input.pdf          # PDF → MinerU → Markdown (+ content_list.json)
+PaperTranFlow translate input.md       # Markdown → 中文 Markdown (input.zh.md)
+PaperTranFlow run input.pdf            # 完整 pipeline（parse + translate）
+PaperTranFlow resume input.md          # 从 checkpoint 续跑
+PaperTranFlow config check             # 检查 MinerU/GLM 配置
 ```
 
 ## 输出
@@ -57,7 +57,7 @@ input.md       # MinerU 原始 Markdown（可复用）
 input.zh.md    # 翻译后的简体中文 Markdown
 ```
 
-工作目录（含 checkpoint）在 `.paperflow/jobs/<job>/` 下。
+工作目录（含 checkpoint）在 `.PaperTranFlow/jobs/<job>/` 下。
 
 ## License
 

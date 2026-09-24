@@ -1,8 +1,8 @@
-# markdownchange 分析
+﻿# markdownchange 分析
 
 > 阶段：Phase 1
 > `ref/markdownchange/` 是过去针对 MinerU/Markdown 实际问题编写的一组定制化 Python 脚本。
-> 定位：历史参考，不作为 PaperFlow runtime dependency。
+> 定位：历史参考，不作为 PaperTranFlow runtime dependency。
 
 ## 1. 脚本清单与用途
 
@@ -50,19 +50,19 @@ Spec §5 要求重点检查以下问题是否已有解决方案：
 - 文本处理：`get_text(separator=" ")` 防粘连、`|` → `\|` 转义、换行 → `<br>`；
 - 最后把矩阵转成 Markdown 表格（表头行 + 分隔行 + 内容行）。
 
-PaperFlow 迁移到 `src/paperflow/markdown/tables.py`，并加安全兜底：若某表格无法安全转换（如嵌套表格、不规则结构），**保留原 HTML**，正确性优先（spec §16）。
+PaperTranFlow 迁移到 `src/PaperTranFlow/markdown/tables.py`，并加安全兜底：若某表格无法安全转换（如嵌套表格、不规则结构），**保留原 HTML**，正确性优先（spec §16）。
 
 ### 3.2 heading 层级恢复（`process_md_by_contents.py` + `mark_c.py`）
 
 `process_md_by_contents.py` 用 `Contents.txt` 的 tab 缩进作为层级，把 `# title` 重写为 `#`×层级。`mark_c.py` 识别编号标题（`# 1.2 Title`）由点号数量推导层级。
 
-PaperFlow 改为：**以 `content_list.json` 的 `text_level` / `type` 为主要层级依据**（spec §13），`# title` 的 Markdown 仅作为内容与顺序来源。编号标题识别逻辑保留为 fallback（当 content_list 缺失时）。
+PaperTranFlow 改为：**以 `content_list.json` 的 `text_level` / `type` 为主要层级依据**（spec §13），`# title` 的 Markdown 仅作为内容与顺序来源。编号标题识别逻辑保留为 fallback（当 content_list 缺失时）。
 
 ### 3.3 图片清理（`clean_images.py`）
 
 提取 `![...](images/xxx)` 引用集合，删除未被引用图片，清理指向不存在图片的引用行。
 
-PaperFlow 迁移到 `cleanup.py`：只清理「明显失效/重复的图片占位」，**不因『看起来像重复』直接删正文**（spec §18）。
+PaperTranFlow 迁移到 `cleanup.py`：只清理「明显失效/重复的图片占位」，**不因『看起来像重复』直接删正文**（spec §18）。
 
 ## 4. 从 `LTC2991手册.md` 观察到的 MinerU 真实输出特征
 
@@ -77,21 +77,21 @@ PaperFlow 迁移到 `cleanup.py`：只清理「明显失效/重复的图片占�
 7. **重复内容**：同一「ELECTRICAL CHARACTERISTICS」说明段 + 表格重复出现（页眉/页脚 OCR 重复）。
 8. **错误符号**：`$| ^ { 2 } 0$`（I²C 被识别成 `|^2 0`）、`$\mu \lor / \rho \complement$`（μV/°C 误识别）。
 
-这些直接对应 PaperFlow 的 normalization / cleanup 需要处理的问题。
+这些直接对应 PaperTranFlow 的 normalization / cleanup 需要处理的问题。
 
 ## 5. 迁移策略
 
 按 spec §5：
 
 ```text
-旧脚本 → 分析核心逻辑 → 重新整理/重写 → PaperFlow module
+旧脚本 → 分析核心逻辑 → 重新整理/重写 → PaperTranFlow module
 ```
 
-最终 PaperFlow **不** `import ref.markdownchange.xxx`。将以下算法重写为独立模块：
+最终 PaperTranFlow **不** `import ref.markdownchange.xxx`。将以下算法重写为独立模块：
 
-- `html_table_to_md2.py` → `src/paperflow/markdown/tables.py`
-- `process_md_by_contents.py` + `mark_c.py` → `src/paperflow/markdown/structure.py`（改用 content_list.json）
-- `clean_images.py` → `src/paperflow/markdown/cleanup.py`
+- `html_table_to_md2.py` → `src/PaperTranFlow/markdown/tables.py`
+- `process_md_by_contents.py` + `mark_c.py` → `src/PaperTranFlow/markdown/structure.py`（改用 content_list.json）
+- `clean_images.py` → `src/PaperTranFlow/markdown/cleanup.py`
 
 并建立 regression fixture（spec §38）：
 

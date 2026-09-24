@@ -1,4 +1,4 @@
-# /config/user/ 配置分析
+﻿# /config/user/ 配置分析
 
 > 阶段：Phase 1
 > 目标：确认现有 API 配置的真实文件格式、字段与组织方式，不猜测、不另起炉灶。
@@ -31,30 +31,30 @@ config/
 2. 没有统一的配置文件（无 JSON/TOML/YAML）。字段名即文件名：`MirerU`、`GLM`。
 3. `config/user/` 已在 `.gitignore` 中（当前仓库 `.gitignore` 含 `/config/user/`），**不能被 git 追踪**。
 
-## 3. PaperFlow 兼容策略
+## 3. PaperTranFlow 兼容策略
 
-PaperFlow 的 `ConfigLoader` / `UserConfigLocator` / `CredentialLoader` 必须：
+PaperTranFlow 的 `ConfigLoader` / `UserConfigLocator` / `CredentialLoader` 必须：
 
 1. **优先兼容现有 `/config/user/` 纯 token 文件**：
    - MinerU token ← `<config_dir>/user/MirerU`（文件名大小写不敏感，兼容 `MinerU`）。
    - GLM key   ← `<config_dir>/user/GLM`。
-2. **`PAPERFLOW_CONFIG_DIR` 环境变量覆盖**配置目录。
+2. **`PaperTranFlow_CONFIG_DIR` 环境变量覆盖**配置目录。
 3. **Windows 默认用户配置路径**（实现确定，不硬编码 Linux `/config/user/`）：
-   - `%APPDATA%\PaperFlow\config\`（即 `%APPDATA%\PaperFlow\config\user\MirerU`、`...\GLM`）。
+   - `%APPDATA%\PaperTranFlow\config\`（即 `%APPDATA%\PaperTranFlow\config\user\MirerU`、`...\GLM`）。
 4. **可选 TOML 增强**：`user.toml` 可提供 `model` / `base_url` / `chunking` 等非 secret 项；secret 仍优先从纯 token 文件读，避免把 token 写进可能被分享的 TOML。
 
 ### 3.1 解析顺序（CredentialLoader）
 
 ```text
-1. 显式环境变量 PAPERFLOW_MINERU_TOKEN / PAPERFLOW_GLM_KEY（若有）
-2. PAPERFLOW_CONFIG_DIR/user/MirerU 与 .../user/GLM
-3. Windows: %APPDATA%/PaperFlow/config/user/...
+1. 显式环境变量 PaperTranFlow_MINERU_TOKEN / PaperTranFlow_GLM_KEY（若有）
+2. PaperTranFlow_CONFIG_DIR/user/MirerU 与 .../user/GLM
+3. Windows: %APPDATA%/PaperTranFlow/config/user/...
 4. 开发环境：仓库根 /config/user/...
 ```
 
 ### 3.2 字段映射
 
-| PaperFlow 字段 | 来源文件 | 说明 |
+| PaperTranFlow 字段 | 来源文件 | 说明 |
 |----------------|----------|------|
 | `mineru.token` | `user/MirerU` | MinerU API token |
 | `glm.api_key` | `user/GLM` | GLM API key |
@@ -77,4 +77,4 @@ GLM:    configured   (或 not configured)
 
 ## 5. 结论
 
-现有 `/config/user/` 是「纯 token 文件」格式，字段名 = 文件名。PaperFlow 的 `CredentialLoader` 直接读取这些文件即可完全兼容，**无需要求用户重建配置系统**。额外 TOML 仅作为可选增强（承载 base_url/model/chunking 等非 secret 配置）。
+现有 `/config/user/` 是「纯 token 文件」格式，字段名 = 文件名。PaperTranFlow 的 `CredentialLoader` 直接读取这些文件即可完全兼容，**无需要求用户重建配置系统**。额外 TOML 仅作为可选增强（承载 base_url/model/chunking 等非 secret 配置）。

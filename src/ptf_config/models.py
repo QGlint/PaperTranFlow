@@ -59,11 +59,29 @@ class OutputConfig:
 
 
 @dataclass
-class PaperFlowConfig:
+class ImageHostConfig:
+    """cf 图床配置（默认关闭）。
+
+    配置存 config/user/CfImage.json：{"base_url": "...", "token": "..."}
+    """
+
+    base_url: str = ""
+    token: str = ""
+    # 默认关闭，需显式开启（CLI --upload-images 或配置）
+    enabled: bool = False
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.base_url and self.token)
+
+
+@dataclass
+class PaperTranFlowConfig:
     mineru: MinerUConfig = field(default_factory=MinerUConfig)
     glm: GLMConfig = field(default_factory=GLMConfig)
     translation: TranslationConfig = field(default_factory=TranslationConfig)
     chunking: ChunkingConfig = field(default_factory=ChunkingConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    image_host: ImageHostConfig = field(default_factory=ImageHostConfig)
     # 实际定位到的配置目录（供诊断）
     config_dir: str = ""

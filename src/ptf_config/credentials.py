@@ -3,15 +3,20 @@
 兼容现有 /config/user/ 的「纯 token 文件」格式：
     <config_dir>/user/MirerU   -> MinerU API token
     <config_dir>/user/GLM      -> GLM API key
+
+图床配置（单文件 JSON）：
+    <config_dir>/user/CfImage.json -> {"base_url": "...", "token": "..."}
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
 # 文件名大小写不敏感；兼容历史拼写 "MirerU" / "MinerU"
 _MINERU_NAMES = ("mireru", "mineru")
 _GLM_NAMES = ("glm",)
+_CF_IMAGE_NAMES = ("cfimage.json", "cfimage")
 
 
 def _read_first_line(path: Path) -> str:
@@ -35,13 +40,13 @@ def _find_case_insensitive(directory: Path, names: tuple[str, ...]) -> Path | No
 
 
 class CredentialLoader:
-    """从用户配置目录读取 MinerU / GLM 凭据。
+    """从用户配置目录读取 MinerU / GLM / 图床凭据。
 
-    显式环境变量优先，其次纯 token 文件。
+    显式环境变量优先，其次纯 token 文件 / JSON 配置文件。
     """
 
-    MINERU_TOKEN_ENV = "PAPERFLOW_MINERU_TOKEN"
-    GLM_KEY_ENV = "PAPERFLOW_GLM_KEY"
+    MINERU_TOKEN_ENV = "PAPERTRANFLOW_MINERU_TOKEN"
+    GLM_KEY_ENV = "PAPERTRANFLOW_GLM_KEY"
 
     def __init__(self, config_dir: Path | None):
         self._config_dir = config_dir
@@ -72,6 +77,23 @@ class CredentialLoader:
             if f:
                 return _read_first_line(f)
         return ""
+
+    def load_image_host(self) -> tuple[str, str]:
+        """读取图床配置，返回 (base_url, token)。无配置返回 ("", "")。"""
+        user_dir = self._user_dir()
+        if user_dir:
+            f = _find_case_insensitive(user_dir, _CF_IMAGE_NAMES)
+            if f:
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    if isinstance(data, dict):
+                        return (
+                            str(data.get("base_url", "")).strip(),
+                            str(data.get("token", "")).strip(),
+                        )
+                except (json.JSONDecodeError, OSError):
+                    return "", ""
+        return "", ""
 
 
 def mask_secret(secret: str) -> str:

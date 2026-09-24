@@ -12,8 +12,8 @@
 """
 from __future__ import annotations
 
-from pf_markdown.models import MarkdownBlock, MarkdownDocument
-from pf_mineru.content_list import build_heading_levels, parse_content_list
+from ptf_markdown.models import MarkdownBlock, MarkdownDocument
+from ptf_mineru.content_list import build_heading_levels, parse_content_list
 
 
 def _norm_title(text: str) -> str:

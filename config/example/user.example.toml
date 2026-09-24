@@ -1,4 +1,4 @@
-# PaperFlow 示例配置（不含真实密钥）
+# PaperTranFlow 示例配置（不含真实密钥）
 
 # 本文件为可选增强配置，承载非 secret 项。
 # secret（MinerU token / GLM key）仍从 <config_dir>/user/MirerU 与 .../user/GLM 读取。
@@ -33,3 +33,9 @@ hard_limit = 6500
 [output]
 # 输出文件名后缀（input.md -> input.zh.md）
 zh_suffix = ".zh.md"
+
+[image_host]
+# 图床上传（默认关闭）。secret 从 <config_dir>/user/CfImage.json 读取：
+#   {"base_url": "https://your-cf-image-host.example.com", "token": "..."}
+# 开启后上传 out_dir/images 下的图片到图床，并重写 markdown 引用为远程 URL。
+enabled = false

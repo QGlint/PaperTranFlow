@@ -3,13 +3,13 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "paperflow"
+name = "PaperTranFlow"
 version = "0.1.0"
 description = "Local CLI-first document parsing, Markdown normalization and translation tool (MinerU + GLM)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MPL-2.0" }
-authors = [{ name = "PaperFlow contributors" }]
+authors = [{ name = "PaperTranFlow contributors" }]
 keywords = ["mineru", "translation", "markdown", "pdf", "glm", "cli"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -31,7 +31,7 @@ dev = [
 ]
 
 [project.scripts]
-paperflow = "cli:main"
+papertranflow = "cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

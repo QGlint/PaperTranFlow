@@ -6,14 +6,14 @@ from pathlib import Path
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
 
-from pf_config.models import ChunkingConfig
-from pf_markdown.models import MarkdownDocument
-from pf_markdown.parser import parse_markdown
-from pf_markdown.structure import StructureRestorer
-from pf_markdown.tables import convert_html_table
-from pf_markdown.serializer import serialize_markdown
-from pf_mineru.content_list import build_heading_levels, parse_content_list
-from pf_translation.chunker import SmartChunker
+from ptf_config.models import ChunkingConfig
+from ptf_markdown.models import MarkdownDocument
+from ptf_markdown.parser import parse_markdown
+from ptf_markdown.structure import StructureRestorer
+from ptf_markdown.tables import convert_html_table
+from ptf_markdown.serializer import serialize_markdown
+from ptf_mineru.content_list import build_heading_levels, parse_content_list
+from ptf_translation.chunker import SmartChunker
 
 
 # ---- parser ----
@@ -121,7 +121,7 @@ def test_chunker_one_chunk_per_translatable_block():
 
 
 def _block(bid, btype, text):
-    from pf_markdown.models import MarkdownBlock
+    from ptf_markdown.models import MarkdownBlock
 
     return MarkdownBlock(block_id=bid, type=btype, source_text=text, normalized_text=text)
 

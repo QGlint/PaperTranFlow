@@ -6,9 +6,9 @@ from pathlib import Path
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
 
-from pf_config.credentials import CredentialLoader, mask_secret
-from pf_config.loader import ConfigLoader
-from pf_config.models import PaperFlowConfig
+from ptf_config.credentials import CredentialLoader, mask_secret
+from ptf_config.loader import ConfigLoader
+from ptf_config.models import PaperTranFlowConfig
 
 
 def _tmp_config(tmp_path, mineru_token="tok-mineru", glm_key="key-glm"):
@@ -36,7 +36,7 @@ def test_credential_loader_case_insensitive(tmp_path):
 
 def test_credential_loader_env_override(tmp_path, monkeypatch):
     cfg_dir = _tmp_config(tmp_path)
-    monkeypatch.setenv("PAPERFLOW_MINERU_TOKEN", "from-env")
+    monkeypatch.setenv("PaperTranFlow_MINERU_TOKEN", "from-env")
     loader = CredentialLoader(cfg_dir)
     assert loader.load_mineru_token() == "from-env"
 
@@ -49,9 +49,9 @@ def test_mask_secret_never_reveals():
 
 def test_config_loader_full(tmp_path, monkeypatch):
     cfg_dir = _tmp_config(tmp_path)
-    monkeypatch.setenv("PAPERFLOW_CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setenv("PaperTranFlow_CONFIG_DIR", str(cfg_dir))
     cfg = ConfigLoader(cwd=tmp_path).load()
-    assert isinstance(cfg, PaperFlowConfig)
+    assert isinstance(cfg, PaperTranFlowConfig)
     assert cfg.mineru.token == "tok-mineru"
     assert cfg.glm.api_key == "key-glm"
     assert cfg.glm.model == "glm-4.7-flash"

@@ -88,47 +88,161 @@ def _int_field(raw: dict, key: str) -> int:
 
 
 # ---- 编号推断层级 ----
+#
+# 设计要点（这是「三级标题恢复」的核心）：
+#   MinerU 的 text_level 常常只给到 2，三级标题丢失。但标题文本里的编号
+#   （1. / 1.1 / 3.2.1 / I. / A.）泄露了真实层级。
+#
+#   难点：编号的**绝对层级**取决于论文自己的编号约定，不能硬编码：
+#     - Hu/Youn 论文：`1. Introduction` 是顶层章节          -> 1. = level 2
+#     - Riedijk  论文：顶层章节不编号，`1./2./3.` 是子节    -> 1. = level 3
+#   因此先做**文档级**分析，推断出「编号体系起点」anchor，再据此定层级。
 
-# 阿拉伯数字编号：1. / 1.1 / 1.1.1 / 1) / (1) / (1.1)
-# 编号形如 "1"、"3.1"、"3.2.1"。贪婪匹配数字段，之后跟 "." / ")" / 空格。
-# "1." 的 "." 是结束符，"3.1" 的 ".1" 是编号一部分（贪婪优先吞掉 .数字）。
-_ARABIC = re.compile(r"^\(?(\d+(?:\.\d+)*)(?:[\.\)]\s+|\s+)(?=\S)")
-# 罗马数字编号：I. / II. / III. / IV. （大写，用于大章节）
-_ROMAN = re.compile(
-    r"^\(?(M{0,4}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))[\.\)]\s+"
-)
-# 字母编号：A. / B. / (A) / (a)（子节）
-_ALPHA = re.compile(r"^\(?([A-Za-z])[\.\)]\s+")
+# 阿拉伯编号：1. / 3.1 / 3.2.1 / 1) / (1)
+#   "1." 的 "." 是结束符；"3.1" 的 ".1" 属于编号本身（贪婪吞掉 .数字），
+#   编号后直接跟空格。因此结尾允许是 "." / ")" / 空白。
+_TOKEN_ARABIC = re.compile(r"^\(?(\d+(?:\.\d+)*)\)?(?:[\.\)]\s+|\s+)")
+# 字母/罗马编号：A. / (A) / I. / II. / III.
+_TOKEN_LETTER = re.compile(r"^\(?([A-Za-z]{1,5})\)?[\.\)]\s+")
+# 罗马数字字符集
+_ROMAN_CHARS = set("IVXLCDM")
 
 
-def infer_level_from_numbering(title: str) -> int:
-    """从标题文本的编号格式推断层级。返回 0 表示无法从编号推断。
+def _extract_token(title: str) -> tuple[str, str]:
+    """取出标题开头的编号 token，返回 (kind_hint, token)。
 
-    约定：
-        阿拉伯数字段数 -> 层级：1 -> 2, 1.1 -> 3, 1.1.1 -> 4
-        罗马数字      -> 2（大章节）
-        单个字母      -> 3（子节）
+    kind_hint: 'arabic' / 'letter' / ''（无编号）
     """
     t = title.strip()
-    if not t:
+    m = _TOKEN_ARABIC.match(t)
+    if m:
+        return "arabic", m.group(1)
+    m = _TOKEN_LETTER.match(t)
+    if m:
+        return "letter", m.group(1)
+    return "", ""
+
+
+def _is_multi_roman(token: str) -> bool:
+    return len(token) > 1 and all(c in _ROMAN_CHARS for c in token.upper())
+
+
+def _has_alpha_run(tokens: list[str]) -> bool:
+    """是否存在从 A 开始的连续字母递增序列（A,B,C / B,C,D ...）。"""
+    singles = [t.upper() for t in tokens if len(t) == 1 and t.isalpha()]
+    for i in range(len(singles) - 2):
+        a, b, c = singles[i], singles[i + 1], singles[i + 2]
+        if ord(b) - ord(a) == 1 and ord(c) - ord(b) == 1:
+            return True
+    return False
+
+
+class NumberingStyle:
+    """一个文档的编号体系分析结果。"""
+
+    def __init__(self, headings: list[tuple[str, int]]):
+        self.anchor = 2
+        self._kinds: dict[str, str] = {}
+        self._analyse(headings)
+
+    def _analyse(self, headings: list[tuple[str, int]]) -> None:
+        kinds: list[tuple[str, str, int]] = []  # (kind_hint, token, text_level)
+        for text, lv in headings:
+            hint, token = _extract_token(text)
+            kinds.append((hint, token, lv))
+
+        has_multi_roman = any(_is_multi_roman(tok) for h, tok, _ in kinds if h == "letter")
+        all_tokens = [tok for h, tok, _ in kinds if h == "letter"]
+        alpha_run = _has_alpha_run(all_tokens)
+
+        # 逐条判定编号类型
+        for (hint, token, lv), (text, _) in zip(kinds, headings):
+            if hint == "arabic":
+                self._kinds[text] = "arabic"
+            elif hint == "letter":
+                if _is_multi_roman(token):
+                    self._kinds[text] = "roman"
+                elif has_multi_roman and alpha_run and not _in_alpha_run(all_tokens, token):
+                    # 文档同时有罗马章节 + 字母子节：不在字母序列里的单字符视为罗马
+                    self._kinds[text] = "roman" if token.upper() in _ROMAN_CHARS else "alpha"
+                else:
+                    self._kinds[text] = "alpha"
+            else:
+                self._kinds[text] = ""
+
+        self.anchor = self._infer_anchor(headings)
+
+    def kind(self, text: str) -> str:
+        return self._kinds.get(text, "")
+
+    def _infer_anchor(self, headings: list[tuple[str, int]]) -> int:
+        unnumbered = [
+            lv for text, lv in headings if self.kind(text) == "" and lv > 0
+        ]
+        numbered = [text for text, _ in headings if self.kind(text) != ""]
+        if not numbered:
+            return 2
+
+        if unnumbered:
+            base = max(set(unnumbered), key=unnumbered.count)
+            first_numbered = next(
+                i for i, (text, _) in enumerate(headings) if self.kind(text) != ""
+            )
+            nested = any(
+                self.kind(text) == "" and lv >= base
+                for text, lv in headings[:first_numbered]
+            )
+            return min(base + (1 if nested else 0), 6)
+
+        levels = [lv for _, lv in headings if lv > 0]
+        return min(max(set(levels), key=levels.count) if levels else 2, 6)
+
+    def level_for(self, text: str, token_segments: int = 1) -> int:
+        """根据编号类型与段数计算层级。返回 0 表示无编号。"""
+        kind = self.kind(text)
+        if kind == "arabic":
+            return self.anchor + (token_segments - 1)
+        if kind == "roman":
+            return self.anchor
+        if kind == "alpha":
+            return self.anchor + 1
         return 0
 
-    # 阿拉伯数字编号（1. / 1.1 / 1.1.1）
-    m = _ARABIC.match(t)
-    if m:
-        segments = m.group(1).count(".") + 1
-        # 1 -> level2, 1.1 -> level3, 1.1.1 -> level4
-        return segments + 1
 
-    # 罗马数字（I. II. III.）
-    if _ROMAN.match(t):
-        return 2
+def _in_alpha_run(tokens: list[str], target: str) -> bool:
+    singles = [t.upper() for t in tokens if len(t) == 1 and t.isalpha()]
+    for i in range(len(singles) - 2):
+        a, b, c = singles[i], singles[i + 1], singles[i + 2]
+        if ord(b) - ord(a) == 1 and ord(c) - ord(b) == 1:
+            if target.upper() in (a, b, c):
+                return True
+    return False
 
-    # 字母（A. B.）
-    if _ALPHA.match(t):
-        return 3
 
+def infer_level_from_numbering(title: str, anchor: int = 2, style: "NumberingStyle | None" = None) -> int:
+    """从标题编号推断层级（独立函数，供测试/单标题场景使用）。
+
+    若提供文档级 style，则使用其编号类型判定与 anchor；否则用简单启发式。
+    """
+    if style is not None:
+        hint, token = _extract_token(title)
+        if hint == "arabic":
+            return style.anchor + (token.count(".") + 1 - 1)
+        return style.level_for(title)
+
+    hint, token = _extract_token(title)
+    if hint == "arabic":
+        return anchor + (token.count(".") + 1 - 1)
+    if hint == "letter":
+        if _is_multi_roman(token):
+            return anchor
+        return anchor + 1
     return 0
+
+
+def infer_numbering_anchor(headings: list[tuple[str, int]]) -> int:
+    """从文档全部标题推断「编号体系起点」层级（对外保留此接口）。"""
+    return NumberingStyle(headings).anchor
 
 
 def build_heading_levels(items: list[ContentItem]) -> dict[str, int]:
@@ -136,23 +250,25 @@ def build_heading_levels(items: list[ContentItem]) -> dict[str, int]:
 
     优先级：
         1. text_level > 2（MinerU 给出可靠的多级层级时直接采用）
-        2. 编号推断（标题带 1. / 1.1 / I. / A. 编号时，从编号推层级）
+        2. 编号推断（用文档级 NumberingStyle，兼容不同编号约定）
         3. text_level（1/2 的基础层级）
     """
-    mapping: dict[str, int] = {}
+    headings: list[tuple[str, int]] = []
+    heading_items: list[tuple[ContentItem, str]] = []
     for it in items:
-        is_heading = (
-            it.type in ("title", "heading", "h1", "h2", "h3", "h4", "h5", "h6")
-            or it.text_level > 0
-        )
-        if not is_heading:
+        if not _is_heading(it):
             continue
-
         text = _norm_title(it.text)
         if not text:
             continue
+        headings.append((text, it.text_level))
+        heading_items.append((it, text))
 
-        level = _resolve_level(it, text)
+    style = NumberingStyle(headings)
+
+    mapping: dict[str, int] = {}
+    for it, text in heading_items:
+        level = _resolve_level(it, text, style)
         if level <= 0:
             continue
         if text not in mapping:
@@ -160,21 +276,39 @@ def build_heading_levels(items: list[ContentItem]) -> dict[str, int]:
     return mapping
 
 
-def _resolve_level(item: ContentItem, text: str) -> int:
+def _is_heading(item: ContentItem) -> bool:
+    return (
+        item.type in ("title", "heading", "h1", "h2", "h3", "h4", "h5", "h6")
+        or item.text_level > 0
+    )
+
+
+def _resolve_level(
+    item: ContentItem, text: str, style: "NumberingStyle | None" = None
+) -> int:
     """综合 text_level 与编号推断，得出标题层级。"""
-    # MinerU 给出可靠的多级层级（>2）时优先采用
-    if item.text_level > 2:
+    hint, token = _extract_token(text)
+
+    # MinerU 给出可靠的多级层级（>2）且该标题无编号时，直接采用
+    if item.text_level > 2 and hint == "":
         return item.text_level
 
-    # 编号推断（覆盖 text_level 只有 1/2 的缺陷）
-    inferred = infer_level_from_numbering(text)
-    if inferred > 0:
-        return inferred
+    # 编号推断（文档级 anchor / 编号类型）
+    if style is not None:
+        segments = token.count(".") + 1 if hint == "arabic" else 1
+        inferred = style.level_for(text, segments) if hint else 0
+        if inferred > 0:
+            return inferred
+    elif hint:
+        inferred = infer_level_from_numbering(text)
+        if inferred > 0:
+            return inferred
 
     # 回退：text_level，或从 type 推断
     if item.text_level > 0:
         return item.text_level
     return _level_from_type(item.type)
+
 
 
 def _level_from_type(type_: str) -> int:

@@ -229,37 +229,77 @@ class Pipeline:
         self._apply_translations(document, chunks, translations)
         out_path = self.writer.write(document, md_path, out_dir=out_dir)
 
-        # 图床上传（默认关闭）
+        # 图床上传（默认关闭）：一次批量上传 + 指定批次文件夹
         if self.config.image_host.enabled and self.config.image_host.configured:
-            self._upload_images_to_host(out_path, out_dir)
+            self._upload_images_to_host(out_path, out_dir, md_path)
 
         self._fire(EventType.JOB_COMPLETED, path=str(out_path))
         return out_path
 
-    def _upload_images_to_host(self, out_path: Path, out_dir: Path) -> None:
-        """把 out_dir/images 下的图片上传到图床，并重写 out_path 的引用。"""
-        from ptf_output.image_host import ImageHostUploader, rewrite_markdown_images
+    def _upload_images_to_host(self, out_path: Path, out_dir: Path, md_path: Path) -> None:
+        """把 out_dir/images 下的图片批量上传到图床，并重写 out_path 的引用。
 
-        uploader = ImageHostUploader(
-            self.config.image_host.base_url, self.config.image_host.token
-        )
+        使用 batchCommit：一次请求上传多张图并指定 folderName（图床据此建文件夹）。
+        """
+        from ptf_output.image_host import ImageHostUploader, rewrite_markdown_images
 
         images_dir = out_dir / "images"
         if not images_dir.is_dir():
             return
 
-        text = out_path.read_text(encoding="utf-8")
-        image_map: dict[str, str] = {}
-        for img in sorted(images_dir.glob("*")):
-            if not img.is_file():
-                continue
-            remote = uploader.upload_one(img)
-            # 本地相对路径 -> 远程 URL
-            image_map[f"images/{img.name}"] = remote
+        images = sorted(p for p in images_dir.glob("*") if p.is_file())
+        if not images:
+            return
 
+        uploader = ImageHostUploader(
+            self.config.image_host.base_url, self.config.image_host.token
+        )
+
+        # 批次文件夹名：优先用论文标题（人类可读），回退到 md 文件名
+        folder_name = self._batch_folder_name(out_path, md_path)
+        request_id = self._batch_request_id(folder_name)
+
+        self._fire(
+            EventType.IMAGE_UPLOAD_STARTED, count=len(images), folder=folder_name
+        )
+        file_map = uploader.upload_batch(
+            files=images,
+            folder_name=folder_name,
+            commit_message=f"PaperTranFlow 上传 {out_path.stem} 的 {len(images)} 张配图",
+            request_id=request_id,
+        )
+
+        # 本地引用 images/xxx.jpg -> 远程 URL
+        image_map = {f"images/{name}": url for name, url in file_map.items()}
         if image_map:
+            text = out_path.read_text(encoding="utf-8")
             rewritten = rewrite_markdown_images(text, image_map)
             out_path.write_text(rewritten, encoding="utf-8")
+
+        self._fire(EventType.IMAGE_UPLOAD_COMPLETED, count=len(image_map))
+
+    @staticmethod
+    def _batch_folder_name(out_path: Path, md_path: Path) -> str:
+        """批次文件夹名：用 markdown 一级标题（论文标题），回退到文件名 stem。"""
+        try:
+            text = out_path.read_text(encoding="utf-8")
+            doc = parse_markdown(text)
+            for block in doc.blocks:
+                if block.type == "heading" and block.metadata.get("level") == 1:
+                    title = str(block.metadata.get("title", "")).strip()
+                    if title:
+                        return title
+        except (OSError, UnicodeDecodeError):
+            pass
+        return md_path.stem
+
+    @staticmethod
+    def _batch_request_id(folder_name: str) -> str:
+        """稳定 requestId（幂等键）：同名论文重试不会重复上传。"""
+        import hashlib
+
+        digest = hashlib.sha1(folder_name.encode("utf-8")).hexdigest()[:12]
+        return f"papertranflow-{digest}"
 
     def resume(self, md_path: Path, work_dir: Path | None = None) -> Path:
         """从 checkpoint 续跑。source hash 变化则拒绝。"""

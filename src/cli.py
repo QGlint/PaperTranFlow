@@ -73,6 +73,10 @@ def _make_emitter():
                 print(f"  [chunk] {cid} 翻译中…")
             else:
                 print(f"  [chunk] {cid} 完成")
+        elif event == EventType.IMAGE_UPLOAD_STARTED:
+            print(f"[IMAGE] 上传 {data.get('count', 0)} 张图到图床（文件夹: {data.get('folder', '')}）…")
+        elif event == EventType.IMAGE_UPLOAD_COMPLETED:
+            print(f"[IMAGE] 上传完成（{data.get('count', 0)} 张），已重写 markdown 引用")
         elif event == EventType.JOB_COMPLETED:
             print(f"[DONE] 输出 -> {data.get('path', '')}")
         elif event == EventType.JOB_FAILED:

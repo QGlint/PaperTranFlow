@@ -38,8 +38,19 @@ def _build_parser() -> argparse.ArgumentParser:
     config_sub_sub = config_sub.add_subparsers(dest="config_command", required=True)
     config_sub_sub.add_parser("check", help="检查 MinerU/GLM 配置")
 
-    parser.add_argument("--work-dir", help="中间过程目录（默认 .papertranflow/<name>）")
-    parser.add_argument("--out-dir", help="结果目录（默认 outfile/<name>）")
+    parser.add_argument("--work-dir", help="中间过程目录（默认 .papertranflow/<标题>）")
+    parser.add_argument(
+        "--out-dir",
+        help="结果目录（默认 outfile/<一级>/[<二级>/]<标题>）",
+    )
+    parser.add_argument(
+        "--category",
+        help="第一级文件夹（默认自动判断 paper/Manual）",
+    )
+    parser.add_argument(
+        "--sub-category",
+        help="第二级文件夹（类别；省略则不建这一级）",
+    )
     parser.add_argument(
         "--upload-images",
         action="store_true",
@@ -113,7 +124,17 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = ConfigLoader().load()
     work_dir = Path(args.work_dir) if args.work_dir else None
-    out_dir = Path(args.out_dir) if args.out_dir else None
+    # out_dir 未显式指定时，按「一级/[二级/]标题」规则构造
+    if args.out_dir:
+        out_dir = Path(args.out_dir)
+    else:
+        from ptf_core.pipeline import build_out_dir
+
+        out_dir = build_out_dir(
+            input_path,
+            category=getattr(args, "category", None),
+            sub_category=getattr(args, "sub_category", None),
+        )
 
     # 图床上传开关（默认关闭）
     if getattr(args, "upload_images", False):

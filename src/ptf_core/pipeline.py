@@ -43,13 +43,37 @@ OUT_ROOT = "outfile"
 
 
 def default_work_dir(input_path: Path) -> Path:
-    """中间过程目录：.papertranflow/<名称>/（与输入文件同目录）。"""
-    return input_path.parent / WORK_ROOT / input_path.stem
+    """中间过程目录：.papertranflow/<标题>/（与输入文件同目录）。"""
+    from ptf_output.naming import extract_title, safe_folder_name
+
+    title = safe_folder_name(extract_title(input_path.stem))
+    return input_path.parent / WORK_ROOT / title
+
+
+def build_out_dir(
+    input_path: Path,
+    category: str | None = None,
+    sub_category: str | None = None,
+) -> Path:
+    """结果目录：outfile/<一级>/<二级?>/<标题>/（与输入文件同目录）。
+
+    一级：paper / Manual 等（category 指定，否则自动判断）
+    二级：类别（sub_category 指定；为空则省略这一级）
+    三级：文档标题（去掉作者/年份前缀）
+    """
+    from ptf_output.naming import extract_title, guess_category, safe_folder_name
+
+    title = safe_folder_name(extract_title(input_path.stem))
+    level1 = category or guess_category(input_path.stem, str(input_path))
+    base = input_path.parent / OUT_ROOT / safe_folder_name(level1, max_len=32)
+    if sub_category:
+        base = base / safe_folder_name(sub_category, max_len=32)
+    return base / title
 
 
 def default_out_dir(input_path: Path) -> Path:
-    """结果目录：outfile/<名称>/（与输入文件同目录）。"""
-    return input_path.parent / OUT_ROOT / input_path.stem
+    """结果目录（默认无二级类别）。"""
+    return build_out_dir(input_path)
 
 
 class Pipeline:
@@ -90,11 +114,16 @@ class Pipeline:
             result.content_list_json or "", encoding="utf-8"
         )
 
-        # 图片资产：只提取 markdown 实际引用的图片，落盘到 out_dir/images
-        self._write_assets(result, out_dir)
+        # 图片资产：只提取 markdown 实际引用的图片
+        #   - 落盘到 out_dir/images（结果交付）
+        #   - 同时缓存到 work_dir/mineru/images（复用，避免重跑 MinerU）
+        self._write_assets(result, out_dir, mineru_dir / "images")
 
-        # 最终输入 Markdown 放 out_dir
-        result_md = out_dir / f"{pdf_path.stem}.md"
+        # 最终输入 Markdown 放 out_dir，文件名用「纯标题」（去掉作者/年份）
+        from ptf_output.naming import extract_title, safe_file_name
+
+        doc_name = safe_file_name(extract_title(pdf_path.stem))
+        result_md = out_dir / f"{doc_name}.md"
         result_md.write_text(result.markdown, encoding="utf-8")
 
         # 同时保留一份 mineru 原始 markdown 到 work_dir 便于复用
@@ -104,11 +133,13 @@ class Pipeline:
         return result_md, result.content_list_json
 
     @staticmethod
-    def _write_assets(result, out_dir: Path) -> None:
-        """把 markdown 实际引用的图片落盘到 out_dir/images（未引用的不落盘）。
+    def _write_assets(result, out_dir: Path, cache_dir: Path | None = None) -> None:
+        """把 markdown 实际引用的图片落盘（未引用的不落盘）。
 
         迁移自 ref/markdownchange/script/clean_images.py 的「清理无用图片」思路：
-        只保留被 markdown 引用的图片，避免 out_dir 里出现无用图片。
+        只保留被 markdown 引用的图片，避免输出目录出现无用图片。
+
+        同时可缓存一份到 cache_dir（work_dir），便于后续复用。
         """
         if not result.assets:
             return
@@ -120,9 +151,29 @@ class Pipeline:
             norm = name.replace("\\", "/")
             if not norm.startswith("images/"):
                 continue
-            target = out_dir / Path(name)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
+            for base in (out_dir, cache_dir):
+                if base is None:
+                    continue
+                target = base / Path(name)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+
+    def _restore_images_from_cache(self, out_dir: Path, work_dir: Path) -> int:
+        """out_dir 缺图时，从 work_dir/mineru/images 恢复（重跑不用重新调 MinerU）。"""
+        cache = work_dir / "mineru" / "images"
+        if not cache.is_dir():
+            return 0
+        count = 0
+        for src in cache.glob("*"):
+            if not src.is_file():
+                continue
+            dst = out_dir / "images" / src.name
+            if dst.is_file():
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_bytes(src.read_bytes())
+            count += 1
+        return count
 
     # ---- 标准化 ----
 
@@ -154,9 +205,17 @@ class Pipeline:
         """
         text = md_path.read_text(encoding="utf-8")
         work_dir = work_dir or default_work_dir(md_path)
-        out_dir = out_dir or (md_path.parent if md_path.parent.name == md_path.stem else default_out_dir(md_path))
+        # 未指定 out_dir 时，若 md 已在「标题」目录中则就地输出，否则按规则构造
+        if out_dir is None:
+            if md_path.parent.name == md_path.stem:
+                out_dir = md_path.parent
+            else:
+                out_dir = default_out_dir(md_path)
         work_dir.mkdir(parents=True, exist_ok=True)
         out_dir.mkdir(parents=True, exist_ok=True)
+
+        # 若 out_dir 缺图，从 work_dir 缓存恢复（重跑无需重新调 MinerU）
+        self._restore_images_from_cache(out_dir, work_dir)
 
         # 尝试读取 content_list.json（work_dir/mineru 或 md 同目录）
         cl_json = ""

@@ -1,4 +1,4 @@
-﻿"""MinerU 云 API 客户端。
+"""MinerU 云 API 客户端。
 
 流程（参考 DocuTranslate 的 converter_mineru.py，独立重新实现）：
     submit  -> POST /file-urls/batch 得到 batch_id + 上传 URL

@@ -79,13 +79,16 @@ class CredentialLoader:
         return ""
 
     def load_image_host(self) -> tuple[str, str]:
-        """读取图床配置，返回 (base_url, token)。无配置返回 ("", "")。"""
+        """读取图床配置，返回 (base_url, token)。无配置返回 ("", "")。
+
+        用 utf-8-sig 读取：兼容带 BOM 的 JSON（Windows 记事本/PowerShell 常见）。
+        """
         user_dir = self._user_dir()
         if user_dir:
             f = _find_case_insensitive(user_dir, _CF_IMAGE_NAMES)
             if f:
                 try:
-                    data = json.loads(f.read_text(encoding="utf-8"))
+                    data = json.loads(f.read_text(encoding="utf-8-sig"))
                     if isinstance(data, dict):
                         return (
                             str(data.get("base_url", "")).strip(),

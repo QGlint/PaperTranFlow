@@ -361,7 +361,12 @@ class Pipeline:
         chunks: list[Chunk],
         translations: dict[str, str],
     ) -> None:
-        """把每个 chunk 的译文放回对应 block（1:1 block 对应）。"""
+        """把每个 chunk 的译文放回对应 block（1:1 block 对应）。
+
+        对 heading block：译文可能带着 LLM 自己写的 `#` 前缀（数量未必正确），
+        因此这里**剥掉译文的 # 前缀，再用 structure 恢复得到的层级重新加前缀**，
+        保证标题层级由 PaperTranFlow 决定（spec §13：不让 LLM 决定层级）。
+        """
         block_translations: dict[str, list[str]] = {}
         for chunk in chunks:
             translated = translations.get(chunk.chunk_id)
@@ -374,4 +379,19 @@ class Pipeline:
             parts = block_translations.get(block.block_id)
             if not parts:
                 continue
-            block.normalized_text = " ".join(p.rstrip("\n") for p in parts if p.strip())
+            text = " ".join(p.rstrip("\n") for p in parts if p.strip())
+
+            if block.type == "heading":
+                text = _reassert_heading_level(text, block.metadata.get("level", 1))
+            block.normalized_text = text
+
+
+def _reassert_heading_level(text: str, level: int) -> str:
+    """剥掉标题文本里已有的 # 前缀，按 level 重新加前缀。"""
+    import re
+
+    level = max(1, min(int(level or 1), 6))
+    body = re.sub(r"^\s*#{1,6}\s*", "", text).strip()
+    if not body:
+        return "#" * level
+    return f"{'#' * level} {body}"

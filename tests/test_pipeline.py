@@ -42,7 +42,7 @@ def _cfg():
 def test_apply_translations_one_to_one():
     """译文与 block 一一对应：block 数量/顺序不变。"""
     doc = MarkdownDocument(blocks=[
-        MarkdownBlock("b1", "heading", "# Intro"),
+        MarkdownBlock("b1", "heading", "# Intro", metadata={"level": 1}),
         MarkdownBlock("b2", "paragraph", "hello world"),
         MarkdownBlock("b3", "math", "$$\nx\n$$"),
         MarkdownBlock("b4", "paragraph", "second paragraph"),
@@ -64,6 +64,28 @@ def test_apply_translations_one_to_one():
     assert doc.blocks[2].normalized_text == ""
     assert doc.blocks[3].normalized_text == "第二段"
     assert len(doc.blocks) == 4
+
+
+def test_apply_translations_reasserts_heading_level():
+    """LLM 返回的 # 数量不可信：层级必须由 PaperTranFlow 决定。"""
+    from ptf_core.models import Chunk
+
+    doc = MarkdownDocument(blocks=[
+        MarkdownBlock("b1", "heading", "## 1. Limited chip area",
+                      metadata={"level": 3}),
+        MarkdownBlock("b2", "heading", "## Abstract", metadata={"level": 2}),
+    ])
+    chunks = [
+        Chunk("c1", ["b1"], "## 1. Limited chip area"),
+        Chunk("c2", ["b2"], "## Abstract"),
+    ]
+    # LLM 把三级标题也返回成 ##
+    translations = {"c1": "## 1. 有限的芯片面积", "c2": "# 摘要"}
+    Pipeline._apply_translations(doc, chunks, translations)
+
+    # 应被重新加前缀为 ### / ##
+    assert doc.blocks[0].normalized_text == "### 1. 有限的芯片面积"
+    assert doc.blocks[1].normalized_text == "## 摘要"
 
 
 def test_translate_end_to_end(tmp_path, monkeypatch):

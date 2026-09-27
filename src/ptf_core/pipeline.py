@@ -13,7 +13,9 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Callable
@@ -280,7 +282,14 @@ class Pipeline:
 
     @staticmethod
     def _batch_folder_name(out_path: Path, md_path: Path) -> str:
-        """批次文件夹名：用 markdown 一级标题（论文标题），回退到文件名 stem。"""
+        """批次文件夹名：用 markdown 一级标题（论文标题），回退到文件名 stem。
+
+        图床对文件夹名有约束（见图床侧 batchFolder.js）：
+            每段上限 64 字符、层级上限 6 层、`: * ? " < > |` 会被清洗。
+        因此过长的标题需要截断，并追加短哈希保证唯一性（避免不同论文
+        因前 64 字符相同而落到同一文件夹）。
+        """
+        title = ""
         try:
             text = out_path.read_text(encoding="utf-8")
             doc = parse_markdown(text)
@@ -288,16 +297,17 @@ class Pipeline:
                 if block.type == "heading" and block.metadata.get("level") == 1:
                     title = str(block.metadata.get("title", "")).strip()
                     if title:
-                        return title
+                        break
         except (OSError, UnicodeDecodeError):
             pass
-        return md_path.stem
+
+        if not title:
+            title = md_path.stem
+        return _safe_folder_name(title)
 
     @staticmethod
     def _batch_request_id(folder_name: str) -> str:
-        """稳定 requestId（幂等键）：同名论文重试不会重复上传。"""
-        import hashlib
-
+        """稳定 requestId（幂等键）：同一篇论文重试不会重复上传。"""
         digest = hashlib.sha1(folder_name.encode("utf-8")).hexdigest()[:12]
         return f"papertranflow-{digest}"
 
@@ -388,10 +398,37 @@ class Pipeline:
 
 def _reassert_heading_level(text: str, level: int) -> str:
     """剥掉标题文本里已有的 # 前缀，按 level 重新加前缀。"""
-    import re
-
     level = max(1, min(int(level or 1), 6))
     body = re.sub(r"^\s*#{1,6}\s*", "", text).strip()
     if not body:
         return "#" * level
     return f"{'#' * level} {body}"
+
+
+# 图床文件夹名约束（与图床侧 batchFolder.js 对齐）
+FOLDER_SEGMENT_MAX = 64
+_FOLDER_ILLEGAL = re.compile(r'[:*?"<>|\\/]+')
+
+
+def _safe_folder_name(title: str) -> str:
+    """把论文标题转成图床可接受的批次文件夹名。
+
+    规则（与图床侧 batchFolder.js 对齐）：
+        - 非法字符 : * ? " < > | \\ / 替换为 _
+        - 折叠连续空白为单个下划线
+        - 单段超过 64 字符时截断并追加短哈希（保证唯一且可读）
+    """
+    name = _FOLDER_ILLEGAL.sub("_", title).strip()
+    name = re.sub(r"\s+", "_", name)
+    name = re.sub(r"_{2,}", "_", name).strip("_.")
+
+    if not name:
+        name = "paper"
+
+    if len(name) > FOLDER_SEGMENT_MAX:
+        digest = hashlib.sha1(title.encode("utf-8")).hexdigest()[:8]
+        # 预留 "_" + 8 位哈希
+        keep = FOLDER_SEGMENT_MAX - len(digest) - 1
+        name = f"{name[:keep].rstrip('_.')}_{digest}"
+
+    return name

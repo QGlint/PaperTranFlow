@@ -69,6 +69,11 @@ class ImageHostConfig:
     token: str = ""
     # 默认关闭，需显式开启（CLI --upload-images 或配置）
     enabled: bool = False
+    # 图床目录组织（三级：category/sub_category/标题）
+    #   category: 第一级，默认自动判断 paper/Manual
+    #   sub_category: 第二级（类别），为空则省略
+    category: str = ""
+    sub_category: str = ""
 
     @property
     def configured(self) -> bool:

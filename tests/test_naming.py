@@ -1,4 +1,4 @@
-"""命名与目录组织测试。"""
+"""命名与目录组织测试（图床三级目录 + 去作者标题）。"""
 import os
 import sys
 from pathlib import Path
@@ -6,7 +6,6 @@ from pathlib import Path
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 sys.path.insert(0, SRC)
 
-from ptf_core.pipeline import build_out_dir
 from ptf_output.naming import (
     DEFAULT_CATEGORY,
     MANUAL_CATEGORY,
@@ -75,28 +74,25 @@ def test_safe_folder_name_truncates():
     assert len(safe_folder_name(long)) <= 64
 
 
+def test_safe_folder_name_long_gets_hash_suffix():
+    base = "A very long paper title that exceeds the folder segment character limit easily"
+    a = safe_folder_name(base + " alpha")
+    b = safe_folder_name(base + " beta")
+    assert a != b
+    assert len(a) <= 64
+    assert len(b) <= 64
+
+
+def test_safe_folder_name_empty_falls_back():
+    assert safe_folder_name("") == "untitled"
+    assert safe_folder_name("   ") == "untitled"
+
+
+def test_safe_folder_name_no_leading_trailing_separators():
+    out = safe_folder_name("  .Title with dots.  ")
+    assert not out.startswith(" ")
+    assert not out.endswith(".")
+
+
 def test_safe_file_name():
     assert safe_file_name("An integrated temperature sensor") == "An integrated temperature sensor"
-
-
-# ---- 三级目录结构 ----
-
-def test_build_out_dir_three_levels(tmp_path):
-    pdf = tmp_path / "Riedijk和Huijsing - 1991 - An integrated absolute temperature sensor.pdf"
-    out = build_out_dir(pdf)
-    # outfile/paper/<标题>
-    assert out == tmp_path / "outfile" / "paper" / "An integrated absolute temperature sensor"
-
-
-def test_build_out_dir_with_sub_category(tmp_path):
-    pdf = tmp_path / "Riedijk和Huijsing - 1991 - An integrated absolute temperature sensor.pdf"
-    out = build_out_dir(pdf, sub_category="Sensor")
-    assert out == tmp_path / "outfile" / "paper" / "Sensor" / "An integrated absolute temperature sensor"
-
-
-def test_build_out_dir_manual_category(tmp_path):
-    pdf = tmp_path / "LTC2991 - datasheet.pdf"
-    out = build_out_dir(pdf)
-    # outfile/Manual/<标题>
-    assert out.parts[-2] == "Manual"
-    assert out.parts[-1] == "LTC2991 - datasheet"

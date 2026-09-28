@@ -1,19 +1,14 @@
-"""输出命名与目录组织。
+"""图床目录命名工具。
 
-规则（用户要求）：
-    一级文件夹：paper / Manual 等（自动判断，可手动覆盖）
-    二级文件夹：类别（可选；没有类别时省略这一级）
-    三级文件夹：文档标题（去掉作者/年份前缀）
-
-文件名同样使用「纯标题」，方便直接移动到 Obsidian。
+用于图片上传时构造图床上的三级目录：
+    一级：paper / Manual 等（自动判断，可手动覆盖）
+    二级：类别（可选；没有类别时省略这一级）
+    三级：文档标题（去掉作者/年份前缀）
 
 示例：
     "Riedijk和Huijsing - 1991 - An integrated absolute temperature sensor.pdf"
         -> 标题 "An integrated absolute temperature sensor"
-        -> outfile/paper/An integrated absolute temperature sensor/
-               An integrated absolute temperature sensor.md
-               An integrated absolute temperature sensor.zh.md
-               images/
+        -> 图床目录 paper/An integrated absolute temperature sensor/
 """
 from __future__ import annotations
 

@@ -43,37 +43,13 @@ OUT_ROOT = "outfile"
 
 
 def default_work_dir(input_path: Path) -> Path:
-    """中间过程目录：.papertranflow/<标题>/（与输入文件同目录）。"""
-    from ptf_output.naming import extract_title, safe_folder_name
-
-    title = safe_folder_name(extract_title(input_path.stem))
-    return input_path.parent / WORK_ROOT / title
-
-
-def build_out_dir(
-    input_path: Path,
-    category: str | None = None,
-    sub_category: str | None = None,
-) -> Path:
-    """结果目录：outfile/<一级>/<二级?>/<标题>/（与输入文件同目录）。
-
-    一级：paper / Manual 等（category 指定，否则自动判断）
-    二级：类别（sub_category 指定；为空则省略这一级）
-    三级：文档标题（去掉作者/年份前缀）
-    """
-    from ptf_output.naming import extract_title, guess_category, safe_folder_name
-
-    title = safe_folder_name(extract_title(input_path.stem))
-    level1 = category or guess_category(input_path.stem, str(input_path))
-    base = input_path.parent / OUT_ROOT / safe_folder_name(level1, max_len=32)
-    if sub_category:
-        base = base / safe_folder_name(sub_category, max_len=32)
-    return base / title
+    """中间过程目录：.papertranflow/<名称>/（与输入文件同目录）。"""
+    return input_path.parent / WORK_ROOT / input_path.stem
 
 
 def default_out_dir(input_path: Path) -> Path:
-    """结果目录（默认无二级类别）。"""
-    return build_out_dir(input_path)
+    """结果目录：outfile/<名称>/（与输入文件同目录）。"""
+    return input_path.parent / OUT_ROOT / input_path.stem
 
 
 class Pipeline:
@@ -119,11 +95,8 @@ class Pipeline:
         #   - 同时缓存到 work_dir/mineru/images（复用，避免重跑 MinerU）
         self._write_assets(result, out_dir, mineru_dir / "images")
 
-        # 最终输入 Markdown 放 out_dir，文件名用「纯标题」（去掉作者/年份）
-        from ptf_output.naming import extract_title, safe_file_name
-
-        doc_name = safe_file_name(extract_title(pdf_path.stem))
-        result_md = out_dir / f"{doc_name}.md"
+        # 最终输入 Markdown 放 out_dir，文件名与输入一致（保留完整文件名）
+        result_md = out_dir / f"{pdf_path.stem}.md"
         result_md.write_text(result.markdown, encoding="utf-8")
 
         # 同时保留一份 mineru 原始 markdown 到 work_dir 便于复用
@@ -205,12 +178,7 @@ class Pipeline:
         """
         text = md_path.read_text(encoding="utf-8")
         work_dir = work_dir or default_work_dir(md_path)
-        # 未指定 out_dir 时，若 md 已在「标题」目录中则就地输出，否则按规则构造
-        if out_dir is None:
-            if md_path.parent.name == md_path.stem:
-                out_dir = md_path.parent
-            else:
-                out_dir = default_out_dir(md_path)
+        out_dir = out_dir or (md_path.parent if md_path.parent.name == md_path.stem else default_out_dir(md_path))
         work_dir.mkdir(parents=True, exist_ok=True)
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -316,8 +284,8 @@ class Pipeline:
             self.config.image_host.base_url, self.config.image_host.token
         )
 
-        # 批次文件夹名：优先用论文标题（人类可读），回退到 md 文件名
-        folder_name = self._batch_folder_name(out_path, md_path)
+        # 批次文件夹名：三级路径 category/[sub_category/]标题
+        folder_name = self._batch_folder_name(md_path)
         request_id = self._batch_request_id(folder_name)
 
         self._fire(
@@ -339,30 +307,32 @@ class Pipeline:
 
         self._fire(EventType.IMAGE_UPLOAD_COMPLETED, count=len(image_map))
 
-    @staticmethod
-    def _batch_folder_name(out_path: Path, md_path: Path) -> str:
-        """批次文件夹名：用 markdown 一级标题（论文标题），回退到文件名 stem。
+    def _batch_folder_name(self, md_path: Path) -> str:
+        """图床批次文件夹名：三级路径「一级/二级?/标题」。
 
-        图床对文件夹名有约束（见图床侧 batchFolder.js）：
-            每段上限 64 字符、层级上限 6 层、`: * ? " < > |` 会被清洗。
-        因此过长的标题需要截断，并追加短哈希保证唯一性（避免不同论文
-        因前 64 字符相同而落到同一文件夹）。
+        一级（category）：paper / Manual 等，默认自动判断，可 CLI 覆盖
+        二级（sub_category）：类别，为空则省略这一级
+        三级：去作者/年份的英文文件名
+
+        图床侧 batchFolder.js 约束：每段上限 64 字符、层级上限 6 层、
+        非法字符 : * ? " < > | 会被清洗。
         """
-        title = ""
-        try:
-            text = out_path.read_text(encoding="utf-8")
-            doc = parse_markdown(text)
-            for block in doc.blocks:
-                if block.type == "heading" and block.metadata.get("level") == 1:
-                    title = str(block.metadata.get("title", "")).strip()
-                    if title:
-                        break
-        except (OSError, UnicodeDecodeError):
-            pass
+        from ptf_output.naming import extract_title, guess_category, safe_folder_name
 
-        if not title:
-            title = md_path.stem
-        return _safe_folder_name(title)
+        # 三级：去作者/年份的文件名（英文，与本地文件名一致）
+        title = extract_title(md_path.stem)
+
+        # 一级类别
+        category = self.config.image_host.category or guess_category(
+            md_path.stem, str(md_path)
+        )
+
+        # 拼三级路径（每段单独安全化）
+        segs = [safe_folder_name(category, max_len=32)]
+        if self.config.image_host.sub_category:
+            segs.append(safe_folder_name(self.config.image_host.sub_category, max_len=32))
+        segs.append(safe_folder_name(title))
+        return "/".join(segs)
 
     @staticmethod
     def _batch_request_id(folder_name: str) -> str:
@@ -462,32 +432,3 @@ def _reassert_heading_level(text: str, level: int) -> str:
     if not body:
         return "#" * level
     return f"{'#' * level} {body}"
-
-
-# 图床文件夹名约束（与图床侧 batchFolder.js 对齐）
-FOLDER_SEGMENT_MAX = 64
-_FOLDER_ILLEGAL = re.compile(r'[:*?"<>|\\/]+')
-
-
-def _safe_folder_name(title: str) -> str:
-    """把论文标题转成图床可接受的批次文件夹名。
-
-    规则（与图床侧 batchFolder.js 对齐）：
-        - 非法字符 : * ? " < > | \\ / 替换为 _
-        - 折叠连续空白为单个下划线
-        - 单段超过 64 字符时截断并追加短哈希（保证唯一且可读）
-    """
-    name = _FOLDER_ILLEGAL.sub("_", title).strip()
-    name = re.sub(r"\s+", "_", name)
-    name = re.sub(r"_{2,}", "_", name).strip("_.")
-
-    if not name:
-        name = "paper"
-
-    if len(name) > FOLDER_SEGMENT_MAX:
-        digest = hashlib.sha1(title.encode("utf-8")).hexdigest()[:8]
-        # 预留 "_" + 8 位哈希
-        keep = FOLDER_SEGMENT_MAX - len(digest) - 1
-        name = f"{name[:keep].rstrip('_.')}_{digest}"
-
-    return name

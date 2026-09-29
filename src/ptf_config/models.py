@@ -41,10 +41,16 @@ class GLMConfig:
 
 @dataclass
 class TranslationConfig:
+    # 严格串行（恒为 1，不做并发）
     concurrency: int = 1
-    max_retries: int = 3
+    # 单 chunk 重试次数。
+    # 平台全面过载（1305）时，单 chunk 内长重试效率低（官方建议「稍后重试」），
+    # 因此默认少重试、快速失败，由外层 resume 做长等待错峰。
+    max_retries: int = 2
     backoff_base: float = 2.0
     target_lang: str = "简体中文"
+    # 请求之间的最小间隔（秒），主动避让限流
+    request_interval: float = 3.0
 
 
 @dataclass

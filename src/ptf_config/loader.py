@@ -72,9 +72,10 @@ class ConfigLoader:
 
         translation = TranslationConfig(
             concurrency=self._toml_int(toml, "translation", "concurrency", 1),
-            max_retries=self._toml_int(toml, "translation", "max_retries", 3),
+            max_retries=self._toml_int(toml, "translation", "max_retries", 2),
             backoff_base=self._toml_float(toml, "translation", "backoff_base", 2.0),
             target_lang=self._toml_str(toml, "translation", "target_lang", "简体中文"),
+            request_interval=self._toml_float(toml, "translation", "request_interval", 3.0),
         )
 
         chunking = ChunkingConfig(

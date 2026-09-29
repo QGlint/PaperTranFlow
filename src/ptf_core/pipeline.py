@@ -43,13 +43,35 @@ OUT_ROOT = "outfile"
 
 
 def default_work_dir(input_path: Path) -> Path:
-    """中间过程目录：.papertranflow/<名称>/（与输入文件同目录）。"""
-    return input_path.parent / WORK_ROOT / input_path.stem
+    """中间过程目录：.papertranflow/<标题>/（与输入文件同目录）。"""
+    from ptf_output.naming import extract_title, safe_folder_name
+
+    return input_path.parent / WORK_ROOT / safe_folder_name(extract_title(input_path.stem))
 
 
-def default_out_dir(input_path: Path) -> Path:
-    """结果目录：outfile/<名称>/（与输入文件同目录）。"""
-    return input_path.parent / OUT_ROOT / input_path.stem
+def default_out_dir(
+    input_path: Path,
+    category: str = "",
+    sub_category: str = "",
+) -> Path:
+    """结果目录。
+
+    默认（未指定 category/sub_category）：
+        outfile/                     <- 直接放 outfile 下，不建子文件夹
+    指定了 category 或 sub_category：
+        outfile/<一级>/[<二级>/]<标题>/
+    """
+    from ptf_output.naming import extract_title, guess_category, safe_folder_name
+
+    base = input_path.parent / OUT_ROOT
+    if not category and not sub_category:
+        return base
+
+    level1 = category or guess_category(input_path.stem, str(input_path))
+    out = base / safe_folder_name(level1, max_len=32)
+    if sub_category:
+        out = out / safe_folder_name(sub_category, max_len=32)
+    return out / safe_folder_name(extract_title(input_path.stem))
 
 
 class Pipeline:
@@ -73,7 +95,11 @@ class Pipeline:
         返回 (输出 md 路径, content_list_json 文本)。
         """
         work_dir = work_dir or default_work_dir(pdf_path)
-        out_dir = out_dir or default_out_dir(pdf_path)
+        out_dir = out_dir or default_out_dir(
+            pdf_path,
+            category=self.config.image_host.category,
+            sub_category=self.config.image_host.sub_category,
+        )
         work_dir.mkdir(parents=True, exist_ok=True)
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -95,8 +121,11 @@ class Pipeline:
         #   - 同时缓存到 work_dir/mineru/images（复用，避免重跑 MinerU）
         self._write_assets(result, out_dir, mineru_dir / "images")
 
-        # 最终输入 Markdown 放 out_dir，文件名与输入一致（保留完整文件名）
-        result_md = out_dir / f"{pdf_path.stem}.md"
+        # 最终输入 Markdown 放 out_dir，文件名用「去作者的标题」
+        from ptf_output.naming import extract_title, safe_file_name
+
+        doc_name = safe_file_name(extract_title(pdf_path.stem))
+        result_md = out_dir / f"{doc_name}.md"
         result_md.write_text(result.markdown, encoding="utf-8")
 
         # 同时保留一份 mineru 原始 markdown 到 work_dir 便于复用
@@ -178,7 +207,8 @@ class Pipeline:
         """
         text = md_path.read_text(encoding="utf-8")
         work_dir = work_dir or default_work_dir(md_path)
-        out_dir = out_dir or (md_path.parent if md_path.parent.name == md_path.stem else default_out_dir(md_path))
+        # 未指定 out_dir 时，就地输出到 md 所在目录（md 已在正确位置）
+        out_dir = out_dir or md_path.parent
         work_dir.mkdir(parents=True, exist_ok=True)
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -222,10 +252,12 @@ class Pipeline:
         else:
             state = checkpoint.init_state([c.chunk_id for c in chunks])
 
-        backend = GLMBackend(self.config.glm, RetryPolicy(
+        retry_policy = RetryPolicy(
             max_retries=self.config.translation.max_retries,
             backoff_base=self.config.translation.backoff_base,
-        ))
+            request_interval=self.config.translation.request_interval,
+        )
+        backend = GLMBackend(self.config.glm, retry_policy)
 
         done_map: dict[str, str] = {}
         for cid in state.done_chunk_ids:
@@ -236,10 +268,16 @@ class Pipeline:
         self._fire(EventType.TRANSLATION_STARTED, chunks=len(chunks))
 
         translations: dict[str, str] = dict(done_map)
+        first_request = True
         for chunk in chunks:
             if chunk.chunk_id in done_map:
                 self._fire(EventType.CHUNK_COMPLETED, chunk_id=chunk.chunk_id, resumed=True)
                 continue
+            # 主动避让：两次实际请求之间保持最小间隔（严格串行，无并发）
+            if not first_request:
+                retry_policy.sleep_interval()
+            first_request = False
+
             self._fire(EventType.CHUNK_COMPLETED, chunk_id=chunk.chunk_id, started=True)
             translated = backend.translate(
                 chunk.source_text, target_lang=self.config.translation.target_lang
@@ -388,7 +426,11 @@ class Pipeline:
 
     def run(self, pdf_path: Path, work_dir: Path | None = None, out_dir: Path | None = None) -> Path:
         work_dir = work_dir or default_work_dir(pdf_path)
-        out_dir = out_dir or default_out_dir(pdf_path)
+        out_dir = out_dir or default_out_dir(
+            pdf_path,
+            category=self.config.image_host.category,
+            sub_category=self.config.image_host.sub_category,
+        )
         result_md, cl_json = self.parse(pdf_path, work_dir, out_dir)
         return self.translate(result_md, work_dir, out_dir)
 
@@ -405,6 +447,9 @@ class Pipeline:
         对 heading block：译文可能带着 LLM 自己写的 `#` 前缀（数量未必正确），
         因此这里**剥掉译文的 # 前缀，再用 structure 恢复得到的层级重新加前缀**，
         保证标题层级由 PaperTranFlow 决定（spec §13：不让 LLM 决定层级）。
+
+        防御：GLM 有时对短文本（如单行标题）返回空译文；此时**保留原文**，
+        避免出现空的 `##` 这类残缺标题污染输出。
         """
         block_translations: dict[str, list[str]] = {}
         for chunk in chunks:
@@ -420,9 +465,35 @@ class Pipeline:
                 continue
             text = " ".join(p.rstrip("\n") for p in parts if p.strip())
 
+            # 译文为空（或只剩 # 前缀）时保留原文，避免残缺标题/丢内容
+            if not _has_translatable_content(text):
+                continue
+
             if block.type == "heading":
                 text = _reassert_heading_level(text, block.metadata.get("level", 1))
+            elif block.type == "paragraph":
+                # 保持块形态：段落译文内部的空行折叠为单个换行。
+                # 否则 LLM 偶尔插入的空行会让该 block 在重新解析时裂成多块，
+                # 破坏「源与译 block 一一对应」。
+                text = _collapse_blank_lines(text)
             block.normalized_text = text
+
+
+def _collapse_blank_lines(text: str) -> str:
+    """把译文内部的连续空行折叠为单个换行（保持单块形态）。
+
+    仅处理普通文本 block；math/code 等不可翻译 block 不走这里。
+    """
+    t = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    # 多个空白行 -> 单个换行；行尾空白去除
+    t = re.sub(r"\n[ \t]*\n+", "\n", t)
+    return t.strip("\n")
+
+
+def _has_translatable_content(text: str) -> bool:
+    """判断译文是否包含实际内容（排除空串、纯空白、只有 # 前缀的情况）。"""
+    body = re.sub(r"^[\s#>*\-`]*", "", text or "").strip()
+    return bool(body)
 
 
 def _reassert_heading_level(text: str, level: int) -> str:

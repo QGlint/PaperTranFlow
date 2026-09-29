@@ -121,13 +121,19 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = ConfigLoader().load()
     work_dir = Path(args.work_dir) if args.work_dir else None
-    out_dir = Path(args.out_dir) if args.out_dir else None
 
-    # 图床目录组织（category / sub_category）
-    if getattr(args, "category", None):
-        cfg.image_host.category = args.category
-    if getattr(args, "sub_category", None):
-        cfg.image_host.sub_category = args.sub_category
+    # category / sub_category：同时影响本地输出目录与图床目录
+    category = getattr(args, "category", None) or ""
+    sub_category = getattr(args, "sub_category", None) or ""
+    cfg.image_host.category = category
+    cfg.image_host.sub_category = sub_category
+
+    if args.out_dir:
+        out_dir = Path(args.out_dir)
+    else:
+        from ptf_core.pipeline import default_out_dir
+
+        out_dir = default_out_dir(input_path, category=category, sub_category=sub_category)
 
     # 图床上传开关（默认关闭）
     if getattr(args, "upload_images", False):

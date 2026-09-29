@@ -33,7 +33,8 @@ def _cfg():
     return PaperTranFlowConfig(
         mineru=MinerUConfig(token="x"),
         glm=GLMConfig(api_key="x", model="glm-4.7-flash"),
-        translation=TranslationConfig(),
+        # 测试里不需要请求间隔（生产默认 2.0s）
+        translation=TranslationConfig(request_interval=0.0),
         chunking=ChunkingConfig(target=5000, hard_limit=6500),
         output=OutputConfig(zh_suffix=".zh.md"),
     )

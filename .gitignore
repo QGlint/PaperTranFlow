@@ -17,3 +17,7 @@ outfile/
 # æµ‹è¯•/ä¸´æ—¶
 .pytest_cache/
 *.spec
+
+# ÁÙÊ±½Å±¾
+_*.py
+

@@ -1,4 +1,4 @@
-﻿"""GLM 后端（GLM-4.7-Flash）。
+"""GLM 后端（GLM-4.7-Flash）。
 
 OpenAI 兼容 /chat/completions。清理 <think>...</think> 前缀（GLM 强思考模型）。
 """
@@ -12,6 +12,10 @@ import httpx
 from ptf_config.models import GLMConfig
 from ptf_translation.backend import TranslationBackend
 from ptf_translation.retry import RETRYABLE_GLM_CODES, RetryPolicy
+
+# 伪状态码：表示「模型返回了空内容」。用于触发重试，
+# 并在多次重试仍为空时由上层保留原文。
+GLM_EMPTY_RESPONSE = 1300
 
 _SYSTEM_PROMPT = """# 角色
 你是一名专业的机器翻译引擎。
@@ -81,18 +85,29 @@ class GLMBackend(TranslationBackend):
             try:
                 with self._client() as client:
                     resp = client.post(self._url(), headers=self._headers(), json=payload)
+                # 优先解析 body 中的业务错误码（如 1302/1305），
+                # 否则 429 会被当成通用状态码，丢失「限流」语义。
+                body = _parse_json(resp)
                 if resp.status_code >= 400:
-                    last_status = resp.status_code
-                    raise GLMHTTPError(resp.status_code, resp.text)
-                result = resp.json()
-                # 业务错误（GLM 在 HTTP 200 中也可能返回 {"error": {...}}）
-                err = result.get("error")
+                    code = _business_code(body) or resp.status_code
+                    last_status = code
+                    raise GLMHTTPError(code, _error_text(body, resp))
+                # 业务错误（HTTP 200 也可能返回 {"error": {...}}）
+                err = body.get("error") if isinstance(body, dict) else None
                 if err:
                     code = _error_code(err)
                     last_status = code
                     raise GLMHTTPError(code, str(err))
-                content = self._extract_content(result)
-                return self._sanitize(content)
+                content = self._extract_content(body)
+                text = self._sanitize(content)
+                # GLM 偶尔对短输入（如单行标题）返回空内容。
+                # 这不是有效译文，应重试而不是接受（否则会产出空标题）。
+                if text.strip():
+                    return text
+                last_status = GLM_EMPTY_RESPONSE
+                last_error = GLMHTTPError(
+                    GLM_EMPTY_RESPONSE, "GLM 返回空内容"
+                )
             except GLMHTTPError as e:
                 last_error = e
                 last_status = e.status_code
@@ -103,12 +118,12 @@ class GLMBackend(TranslationBackend):
                 if not self.retry_policy.is_retryable(None, error=e):
                     raise
             if attempt < self.retry_policy.max_retries:
-                # 负载过高（1305）用更长退避
-                if last_status in RETRYABLE_GLM_CODES:
-                    time.sleep(self.retry_policy.overload_delay(attempt))
-                else:
-                    self.retry_policy.sleep(attempt)
+                # 限流类错误（1302/1305）用更长退避；其它用普通退避
+                self.retry_policy.sleep(attempt, last_status)
 
+        # 全部重试后仍为空：返回空串交由上层保留原文（不阻断整个任务）
+        if last_status == GLM_EMPTY_RESPONSE:
+            return ""
         raise GLMHTTPError(
             last_status,
             f"翻译失败，已重试 {self.retry_policy.max_retries} 次: {_safe_err(last_error)}",
@@ -147,6 +162,49 @@ def _safe_err(error: BaseException | None) -> str:
         return "unknown"
     text = str(error)
     return text[:200]
+
+
+def _parse_json(resp) -> object:
+    """尽量解析响应 JSON；失败返回 None（不抛异常）。"""
+    try:
+        return resp.json()
+    except Exception:
+        return None
+
+
+def _business_code(body: object) -> int | None:
+    """从响应体提取业务错误码（如 1302/1305）；无则返回 None。
+
+    这样即使 HTTP 状态是 429，也能拿到精确的业务码，
+    从而应用对应的退避策略（1305 比 1302 更长）。
+    """
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict):
+            code = _error_code(err)
+            if code > 0:
+                return code
+        # 有些形态把 code 放在顶层
+        for key in ("code", "msgCode"):
+            v = body.get(key)
+            try:
+                iv = int(v)
+                if iv > 0:
+                    return iv
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def _error_text(body: object, resp) -> str:
+    """构造错误描述文本。"""
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict) and err.get("message"):
+            return str(err["message"])
+        if body.get("message"):
+            return str(body["message"])
+    return (resp.text or "")[:200]
 
 
 def _error_code(err: object) -> int:
